@@ -1,4 +1,4 @@
-package org.halim.sgui.library;
+package org.halim.sgui.sglib;
 
 import java.awt.Color;
 import java.awt.Component;

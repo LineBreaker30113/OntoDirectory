@@ -1,5 +1,7 @@
 package org.halim.dlake;
 
+import org.halim.hport.OntoDirectoryService;
+import org.halim.hport.OntologyReadingService;
 import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -11,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class DataLakeManager {
+public class DataLakeManager implements OntoDirectoryService.DataLakeService {
 
 public Path managerPath;
 public Path lakePath;
@@ -153,5 +155,30 @@ public FileInterface getFileFromIdentity(int identity) {
 		if(fi.identity == identity) { return fi; }
 	}
 	return null;
+}
+
+@Override
+public void saveChanges() {
+
+}
+
+@Override
+public OntologyReadingService getOntologyReadingService() {
+	return null;
+}
+
+@Override
+public OntologyReadingService.OntologyManagingService getOntologyManagingService() {
+	return null;
+}
+
+@Override
+public Path getRootPath() {
+	return null;
+}
+
+@Override
+public void addDataLakeServiceListener(DataLakeServiceListener dataLakeServiceListener) {
+
 }
 }

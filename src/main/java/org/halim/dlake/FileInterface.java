@@ -16,6 +16,8 @@ import java.util.ArrayList;
  */
 public class FileInterface {
 
+public static final int RECORD_SIZE = 140;
+
 /** The resolved, absolute physical path to the file on disk. */
 public Path actualFile;
 
@@ -70,8 +72,6 @@ public void read(DataLakeManager dataLakeManager, ByteBuffer data) {
 // * [12-139]: 128-byte UTF-8 Actual File Name (padded with null bytes)
 // */
 //public class FileInterface {
-//
-//public static final int RECORD_SIZE = 140;
 //
 //public int identity;
 //public String diskName;

@@ -18,7 +18,7 @@ class ElementOf implements OntologyFilter {
 	}
 	@Override
 	public boolean filter(FileInterface element) {
-		return ontologyReadingService.isElementOf(ontologyClass, element);
+		return ontologyReadingService.isElementOfFilter(ontologyClass, element);
 	}
 	@Override
 	public String toString() { return "Element of \"" + ontologyClass + "\""; }

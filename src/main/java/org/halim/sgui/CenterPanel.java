@@ -1,8 +1,8 @@
 package org.halim.sgui;
 
 import org.halim.SettingLogic;
-import org.halim.sgui.library.ScrollableListPanel;
-import org.halim.sgui.library.Utilities;
+import org.halim.sgui.sglib.ScrollableListPanel;
+import org.halim.sgui.sglib.Utilities;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -12,13 +12,13 @@ import java.nio.file.Path;
 
 public class CenterPanel extends JPanel {
 
-public final FullGUI owner;
+public final GUI_RootPanel owner;
 public final CardLayout layout;
 
 public final JPanel welcomePage;
 public WorkspacePanel getWorkspacePanel() { return owner.workspacePanel; }
 
-public CenterPanel(FullGUI owner) {
+public CenterPanel(GUI_RootPanel owner) {
 	this.owner = owner;
 	this.layout = new CardLayout();
 	this.setLayout(layout);
@@ -40,7 +40,7 @@ private void launchLakeChooser() {
 	if (result == JFileChooser.APPROVE_OPTION) {
 		File selectedDir = fileChooser.getSelectedFile();
 		Path lakePath = selectedDir.toPath();
-		owner.mac.createDataLake(lakePath);
+		owner.ontoDirectoryService.createDataLake(lakePath);
 	}
 }
 
@@ -194,7 +194,7 @@ private @NotNull JPanel createLakeCard(@NotNull Path lakePath) {
 	openBtn.setBackground(Utilities.SLPEB_Idle);
 	openBtn.setForeground(Color.BLACK);
 	openBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-	openBtn.addActionListener(e -> owner.mac.dispatchLakeLoadRequest(lakePath));
+	openBtn.addActionListener(e -> owner.ontoDirectoryService.dispatchLakeLoadRequest(lakePath));
 	
 	// Wrapper for the button to keep it centered vertically
 	JPanel btnWrapper = new JPanel(new GridBagLayout());

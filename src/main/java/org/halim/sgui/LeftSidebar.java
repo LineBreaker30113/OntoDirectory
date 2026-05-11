@@ -1,7 +1,7 @@
 package org.halim.sgui;
 
 import org.halim.WorkspaceController;
-import org.halim.sgui.library.Utilities;
+import org.halim.sgui.sglib.Utilities;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -12,7 +12,7 @@ import java.util.List;
 
 public class LeftSidebar extends JPanel {
 
-private final FullGUI owner;
+private final GUI_RootPanel owner;
 private boolean isCollapsed = false;
 
 // The three distinct zones
@@ -34,7 +34,7 @@ private final List<DataLakeHeaderTab> lakeItems = new ArrayList<>(); // Unified 
 
 public int expanded = 260, contracted = 56;
 
-public LeftSidebar(FullGUI owner) {
+public LeftSidebar(GUI_RootPanel owner) {
 	this.owner = owner;
 	setBackground(Utilities.sideBarBG);
 	setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -206,19 +206,19 @@ private @NotNull JPanel buildWorkspaceSection() {
 	panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 	
 	JButton treeBtn = registerButton("Tree View", "tree-view.svg");
-	treeBtn.addActionListener(e -> owner.mac.getWSP().panelToggled(WorkspaceController.treeVN));
+	treeBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.treeVN));
 	
 	JButton filesBtn = registerButton("Files View", "files.svg");
-	filesBtn.addActionListener(e -> owner.mac.getWSP().panelToggled(WorkspaceController.filesVN));
+	filesBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.filesVN));
 	
 	JButton notesBtn = registerButton("Notes View", "note.svg");
-	notesBtn.addActionListener(e -> owner.mac.getWSP().panelToggled(WorkspaceController.notesVN));
+	notesBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.notesVN));
 	
 	JButton graphBtn = registerButton("Graph View", "graph.svg");
-	graphBtn.addActionListener(e -> owner.mac.getWSP().panelToggled(WorkspaceController.graphVN));
+	graphBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.graphVN));
 	
 	JButton vennBtn = registerButton("Venn View", "intersect-three.svg");
-	vennBtn.addActionListener(e -> owner.mac.getWSP().panelToggled(WorkspaceController.vennVN));
+	vennBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.vennVN));
 	
 	panel.add(treeBtn);
 	panel.add(Box.createVerticalStrut(8));
@@ -305,7 +305,7 @@ public static class DataLakeHeaderTab {
 		
 		// Init Main Button
 		mainButton = new JButton(lakeName);
-		mainButton.addActionListener(__ -> lsb.owner.mac.dispatchLakeChooseRequest(identity));
+		mainButton.addActionListener(__ -> lsb.owner.ontoDirectoryService.dispatchLakeChooseRequest(identity));
 		mainButton.setActionCommand(lakeName);
 		mainButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
 		mainButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
@@ -321,7 +321,7 @@ public static class DataLakeHeaderTab {
 		
 		// Init Close Button
 		closeButton = new JButton();
-		closeButton.addActionListener(__ -> lsb.owner.mac.dispatchLakeCloseRequest(identity));
+		closeButton.addActionListener(__ -> lsb.owner.ontoDirectoryService.dispatchLakeCloseRequest(identity));
 		Icon xIconGray = Utilities.loadSVGIcon("icons/x-square.svg", 24, 24);
 		Icon xIconRed = Utilities.loadSVGIcon("icons/x-square.svg", 24, 24);
 		

@@ -4,23 +4,35 @@ import javafx.util.Pair;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.concurrent.Future;
 
 public interface OntoDirectoryService {
 
-Future<DataLakeService> loadDataLake(String fullPath);
+void loadDataLake(String fullPath);
 void deleteLake(DataLakeService dataLakeService);
-ArrayList<Pair<String, Object>> getSettings();
-void setSetting(String key, Object value);
+ArrayList<Pair<String, Object>> getGUI_Settings();
+void setGUI_Setting(String key, Object value);
+
+void addOntoDirectoryServiceListener(OntoDirectoryServiceListener ontoDirectoryServiceListener);
+
+interface OntoDirectoryServiceListener {
+	void onGUI_Change();
+	void onDataLakeLoad(DataLakeService dataLakeService);
+}
 
 
 
-public interface DataLakeService {
+interface DataLakeService {
 	
 	void saveChanges();
 	OntologyReadingService getOntologyReadingService();
 	OntologyReadingService.OntologyManagingService getOntologyManagingService();
 	Path getRootPath();
+	
+	void addDataLakeServiceListener(DataLakeServiceListener dataLakeServiceListener);
+	
+	interface DataLakeServiceListener {
+		void onChange();
+	}
 	
 }
 

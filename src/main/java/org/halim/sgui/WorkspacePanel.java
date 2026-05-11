@@ -9,9 +9,9 @@ public class WorkspacePanel extends JPanel {
 // Tracks the logical order of currently visible panels
 private final ArrayList<WorkPanelWrapper> allPanels = new ArrayList<>();
 private final ArrayList<WorkPanelWrapper> activePanels = new ArrayList<>();
-public final FullGUI owner;
+public final GUI_RootPanel owner;
 
-public WorkspacePanel(FullGUI owner) {
+public WorkspacePanel(GUI_RootPanel owner) {
 	this.owner = owner;
 	setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 }

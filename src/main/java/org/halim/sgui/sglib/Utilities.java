@@ -1,4 +1,4 @@
-package org.halim.sgui.library;
+package org.halim.sgui.sglib;
 
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;

@@ -1,26 +1,30 @@
 package org.halim;
 
+import javafx.util.Pair;
 import org.halim.dlake.DataLakeManager;
-import org.halim.sgui.FullGUI;
+import org.halim.hport.OntoDirectoryService;
+import org.halim.sgui.GUI_RootPanel;
 import org.halim.sgui.WorkspacePanel;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Future;
 
-/** Concerned with how the application GUI is managed. Later may be decoupled From GUI. */
+/** Concerned with how the application GUI is managed. Later may decouple From GUI. */
 public class ApplicationController {
 
-public FullGUI view;
+public GUI_RootPanel view;
 public WorkspaceController wsModeller;
 
 // Memory map to hold and instantly swap between instantiated Data Lakes
 private final Map<Path, DataLakeManager> activeLakes = new HashMap<>();
 
 public ApplicationController() {
-	SwingUtilities.invokeLater(() -> this.view = new FullGUI(this));
+	SwingUtilities.invokeLater(() -> this.view = new GUI_RootPanel(this));
 	this.wsModeller = new WorkspaceController(this);
 }
 
@@ -80,4 +84,5 @@ public void dispatchLakeLoadRequest(@NotNull Path lakePath) {
 	view.leftSidebar.revalidate();
 	view.leftSidebar.repaint();
 }
+
 }

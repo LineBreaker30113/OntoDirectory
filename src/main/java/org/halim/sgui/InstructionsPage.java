@@ -2,8 +2,8 @@ package org.halim.sgui;
 
 import org.halim.ManualParser;
 import org.halim.ManualParser.ManualEntry;
-import org.halim.sgui.library.AccordionPanel;
-import org.halim.sgui.library.Utilities;
+import org.halim.sgui.sglib.AccordionPanel;
+import org.halim.sgui.sglib.Utilities;
 
 import javax.swing.*;
 import java.awt.*;

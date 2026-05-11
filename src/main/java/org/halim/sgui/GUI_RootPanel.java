@@ -1,19 +1,19 @@
 package org.halim.sgui;
 
-import org.halim.ApplicationController;
+import org.halim.hport.OntoDirectoryService;
 
 import javax.swing.*;
 import java.awt.*;
 
-public class FullGUI extends JPanel {
+public class GUI_RootPanel extends JPanel {
 
 public final LeftSidebar leftSidebar;
 public final CenterPanel centerPanel;
 public final WorkspacePanel workspacePanel;
-public final ApplicationController mac;
+public final OntoDirectoryService ontoDirectoryService;
 
-public FullGUI(ApplicationController owner) {
-	mac = owner;
+public GUI_RootPanel(OntoDirectoryService service) {
+	ontoDirectoryService = service;
 	setLayout(new BorderLayout());
 	leftSidebar = new LeftSidebar(this);
 	centerPanel = new CenterPanel(this);
