@@ -5,9 +5,9 @@ import org.halim.Listeners.TagChangeListener;
 import org.halim.dlake.DataLakeManager;
 import org.halim.dlake.OntologyClass;
 import org.halim.dlake.OntologyHierarchy;
-import org.halim.gui.library.ContentView;
-import org.halim.gui.library.HierarchyView;
-import org.halim.gui.WorkspacePanel;
+import org.halim.sgui.library.ContentView;
+import org.halim.sgui.library.HierarchyView;
+import org.halim.sgui.WorkspacePanel;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;

@@ -1,10 +1,10 @@
-package org.halim.gui.vpanels;
+package org.halim.sgui.vpanels;
 
 import org.halim.dlake.FileInterface;
 import org.halim.dlake.OntologyClass;
 import org.halim.dlake.OntologyHierarchy.OntologyHierarchyReader;
-import org.halim.gui.library.ContentView;
-import org.halim.gui.library.Utilities;
+import org.halim.sgui.library.ContentView;
+import org.halim.sgui.library.Utilities;
 
 import javax.swing.*;
 import java.awt.*;

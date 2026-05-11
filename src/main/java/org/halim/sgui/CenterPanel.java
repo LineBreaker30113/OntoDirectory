@@ -1,8 +1,8 @@
-package org.halim.gui;
+package org.halim.sgui;
 
 import org.halim.SettingLogic;
-import org.halim.gui.library.ScrollableListPanel;
-import org.halim.gui.library.Utilities;
+import org.halim.sgui.library.ScrollableListPanel;
+import org.halim.sgui.library.Utilities;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;

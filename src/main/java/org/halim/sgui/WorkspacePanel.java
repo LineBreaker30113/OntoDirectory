@@ -1,4 +1,4 @@
-package org.halim.gui;
+package org.halim.sgui;
 
 import javax.swing.*;
 import java.util.ArrayList;

@@ -1,8 +1,8 @@
 package org.halim;
 
 import org.halim.dlake.DataLakeManager;
-import org.halim.gui.FullGUI;
-import org.halim.gui.WorkspacePanel;
+import org.halim.sgui.FullGUI;
+import org.halim.sgui.WorkspacePanel;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;

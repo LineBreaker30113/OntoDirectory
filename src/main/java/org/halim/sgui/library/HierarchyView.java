@@ -1,4 +1,4 @@
-package org.halim.gui.library;
+package org.halim.sgui.library;
 
 import org.halim.Listeners.LakeChangeListener;
 import org.halim.dlake.OntologyHierarchy;

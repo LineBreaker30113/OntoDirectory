@@ -1,4 +1,4 @@
-package org.halim.gui;
+package org.halim.sgui;
 
 import org.halim.ApplicationController;
 

@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 
 /**
  * Represents a discrete file residing within the Data Lake's immutable vault.
@@ -20,6 +21,8 @@ public Path actualFile;
 
 /** The unique identifier mapped to this file within the system. */
 public int identity;
+
+public ArrayList<Integer> tagsByIdentity;
 
 /**
  * Generates a pre-allocated array of empty FileInterface instances.

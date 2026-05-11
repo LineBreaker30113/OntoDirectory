@@ -1,4 +1,4 @@
-package org.halim.gui.library;
+package org.halim.sgui.library;
 
 import javax.swing.*;
 import java.awt.*;

@@ -1,7 +1,7 @@
-package org.halim.gui;
+package org.halim.sgui;
 
 import org.halim.WorkspaceController;
-import org.halim.gui.library.Utilities;
+import org.halim.sgui.library.Utilities;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;

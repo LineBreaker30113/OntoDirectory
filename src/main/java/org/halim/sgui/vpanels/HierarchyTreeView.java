@@ -1,9 +1,9 @@
-package org.halim.gui.vpanels;
+package org.halim.sgui.vpanels;
 
 import org.halim.ApplicationController;
 import org.halim.dlake.OntologyClass;
 import org.halim.dlake.OntologyHierarchy;
-import org.halim.gui.library.HierarchyView;
+import org.halim.sgui.library.HierarchyView;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
