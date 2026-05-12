@@ -14,7 +14,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class OntologyHierarchy {
 
@@ -37,8 +36,8 @@ private static class OntologyElements {
 private DataLakeManager owner;
 private Path lakePath;
 
-private ArrayList<OntologyClass> ontologyClasses = new ArrayList<>();
-private ArrayList<OntologyElements> ontologyContainers = new ArrayList<>();
+ArrayList<OntologyClass> ontologyClasses = new ArrayList<>();
+ArrayList<OntologyElements> ontologyContainers = new ArrayList<>();
 
 // Internal Port Implementations
 public final OntologyHierarchyManager manager = new OntologyHierarchyManager();
@@ -48,6 +47,7 @@ public OntologyHierarchy(DataLakeManager owner) {
 	this.owner = owner;
 	ontologyClasses.add(OntologyClass.makeROOT_ONTOLOGY_CLASS("File"));
 }
+
 
 public OntologyHierarchy(DataLakeManager owner, @NotNull Path lakePath) throws IOException {
 	this(owner);
@@ -88,7 +88,7 @@ public OntologyHierarchy(DataLakeManager owner, @NotNull Path lakePath) throws I
 @Contract(pure = true)
 private @Nullable OntologyElements getElementsFromClass(OntologyClass ontologyClass) {
 	for(OntologyElements oe : ontologyContainers) { if(oe.ontologyClass == ontologyClass) { return oe; } }
-	return null;
+	return ontologyContainers.getFirst();
 }
 
 public void saveToDisk(Path lakePath) throws IOException {
@@ -156,6 +156,11 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 	}
 	
 	@Override
+	public boolean isElementForFilter(OntologyClass ontologyClass, FileInterface file) {
+		return false;
+	}
+	
+	@Override
 	public ArrayList<FileInterface> getOntologyElements(OntologyFilter filter) {
 		ArrayList<FileInterface> result = new ArrayList<>();
 		for (FileInterface file : owner.files) {
@@ -201,7 +206,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 					child.addParent(noc);
 				} else {
 					throw new OntoDirectoryException.NullGivenAsOntologyClassException(
-						  "One element in the \"parents\" array of \"" + name + "\" was null");
+						  "One element in the \"children\" array of \"" + name + "\" was null");
 				}
 			}
 		}
@@ -209,13 +214,9 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		ontologyClasses.add(noc);
 		ontologyContainers.add(new OntologyElements(noc));
 	}
-	
-	public void createNewClass(String name) { createOntologyClass(name, null, null); }
-	
-	public void createNewSubClass(OntologyClass parentC, String name) {
-		OntologyClass noc = new OntologyClass(name, parentC);
-		ontologyClasses.add(noc);
-		ontologyContainers.add(new OntologyElements(noc));
+	public void createOntologyClass(String name) { createOntologyClass(name, null, null); }
+	public void createNewSubClass(String parentC, String name) {
+		createOntologyClass(name, (ArrayList<String>) List.of(parentC), null);
 	}
 	
 	@Override
@@ -235,14 +236,17 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	public void addParent(String className, String parentName) {
 		getClassFromName(className).addParent(getClassFromName(parentName));
 	}
+	@Override
+	public void removeParent(String className, String parentName) {
+		getClassFromName(className).removeParent(getClassFromName(parentName));
+	}
 	
 	@Override
 	public void addElement(String className, FileInterface file) {
-	
+		addElementForManager(getClassFromName(className), file);
 	}
-	
-	public void addElementManager(OntologyClass ontologyClass, FileInterface file) {
-	
+	public void addElementForManager(OntologyClass ontologyClass, FileInterface file) {
+		getElementsFromClass(ontologyClass).files.add(file);
 	}
 	
 	@Override
@@ -268,7 +272,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	}
 	
 	// Legacy compat
-	public void addFileToClass(FileInterface fi, OntologyClass oc) { addElementManager(oc, fi); }
+	public void addFileToClass(FileInterface fi, OntologyClass oc) { addElementForManager(oc, fi); }
 	
 	@Override
 	public ArrayList<FileInterface> getOntologyElements(String className) {

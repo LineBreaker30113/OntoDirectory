@@ -1,5 +1,6 @@
 package org.halim.dlake;
 
+import org.halim.hport.OntoDirectoryException;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
@@ -70,13 +71,11 @@ public static @NotNull OntologyClass makeROOT_ONTOLOGY_CLASS(String name) {
 			this.parents.add(this);
 		}
 		@Override
-		public boolean isAncestry(OntologyClass candidate) {
-			return candidate == this;
-		}
+		public boolean isAncestry(OntologyClass candidate) { return candidate == this; }
 		@Override
 		public OntologyClass addParent(OntologyClass candidate) {
-			System.out.println("Ontologic Parent ("+candidate.name+") attempted to add Root: "+name);
-			return this;
+			throw new OntoDirectoryException.
+				  OntologyRootClassAddParentCall("Ontologic Parent ("+candidate.name+") attempted to add Root: "+name);
 		}
 	};
 }
@@ -139,7 +138,10 @@ public boolean isHeritage(OntologyClass candidate) {
  */
 public OntologyClass addParent(OntologyClass candidate) {
 	if(parents.contains(candidate)) { return this; }
+	if (candidate == this) throw new OntoDirectoryException.OntologyAddParentSelf("Class \"" + name + "\" was tried be it's parent!");
 	if(isAncestry(candidate)) { return this; }
+	if (candidate.isAncestry(this)) throw new OntoDirectoryException.
+		  OntologyAddParentCausesCycle("Class \"" + candidate.name + "\" was descendant of " + name + "!");
 	
 	boolean candidateAdded = false;
 	Iterator<OntologyClass> iterator = parents.iterator();
@@ -227,7 +229,7 @@ public ByteBuffer serialize(@NotNull OntologyHierarchy owner) {
  * @param owner The map resolving integer identities back to {@code OntologyClass} instances.
  * @param data  The binary payload containing this class's serialized state.
  */
-public void unPack(OntologyHierarchy owner, ByteBuffer data) {
+public void unPack(OntologyHierarchy owner, @NotNull ByteBuffer data) {
 	char[] nameBytes = new char[data.getInt()];
 	data.asCharBuffer().get(nameBytes);
 	this.name = new String(nameBytes);
@@ -252,10 +254,22 @@ public void unPack(OntologyHierarchy owner, ByteBuffer data) {
  * @param count The number of empty instances to generate.
  * @return An array containing {@code count} uninitialized {@code OntologyClass} objects.
  */
-public static OntologyClass[] getEmptyArray(int count) {
+public static OntologyClass @NotNull [] getEmptyArray(int count) {
 	OntologyClass[] result = new OntologyClass[count];
 	for(int i = 0; i < count; i++) { result[i] = new OntologyClass(); }
 	return result;
+}
+
+/**
+ * Generates a pre-allocated array of empty ontology classes.
+ * This is primarily used as a precursor step to binary deserialization.
+ *
+ * @param count The number of empty instances to generate.
+ * @return An array containing {@code count} uninitialized {@code OntologyClass} objects.
+ */
+public static void getEmptyArrayList(@NotNull ArrayList<OntologyClass> target, int count) {
+	target.ensureCapacity(count);
+	for(int i = 0; i < count; i++) target.add(new OntologyClass());
 }
 
 public static void main(String[] args) {

@@ -10,15 +10,19 @@ public interface OntologyReadingService {
 
 OntologyClass getRootOntologyClass();
 OntologyClass getClassFromName(String name);
+/** Returns the elements that are directly tagged with this. */
 ArrayList<FileInterface> getOntologyElements(String className);
+/** Returns the elements that are in the domain of the Ontology Class. */
+ArrayList<FileInterface> getAllOntologyElements(String className);
 boolean isElementOf(String className, FileInterface file);
+boolean isElementForFilter(OntologyClass ontologyClass, FileInterface file);
 ArrayList<FileInterface> getOntologyElements(OntologyFilter filter);
 
 
 void addOntologyServiceListener(OntologyServiceListener ontologyServiceListener);
 
 interface OntologyServiceListener {
-	void onChange();
+	void setOntologyDomain(OntologyClass ontologyClass);
 }
 
 interface OntologyManagingService extends OntologyReadingService {
@@ -33,6 +37,11 @@ interface OntologyManagingService extends OntologyReadingService {
 	
 	void undo(); void redo();
 	
+}
+
+interface OntologyElementsReader {
+
+
 }
 
 boolean isElementOfFilter(OntologyClass ontologyClass, FileInterface file);
