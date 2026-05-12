@@ -5,8 +5,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.*;
 
 /**
  * Represents a node within the Data Lake's ontology hierarchy.
@@ -98,10 +97,47 @@ public @NotNull OntologyClass findROOT() {
  * @return {@code true} if this class is identical to or descends from the candidate; {@code false} otherwise.
  */
 public boolean isAncestry(OntologyClass candidate) {
-	if(this == candidate) { return true; }
-	for(OntologyClass p : parents) {
-		if(p.isAncestry(candidate)) { return true; }
+//	if(this == candidate) { return true; }
+//	for(OntologyClass p : parents) {
+//		if(p.isAncestry(candidate)) { return true; }
+//	}
+//	return false;
+	return isAncestry(candidate, new HashSet<>(), new ArrayDeque<>());
+}
+
+/**
+ * Determines if the current class is a subclass (descendant) of the provided candidate.
+ * Optimized with a visited set to handle cycles and avoid redundant checks in
+ * diamond-shaped hierarchies.
+ *
+ * @param candidate The class to test against the ancestry chain.
+ * @param visited   A set to keep track of already processed classes (pass a new HashSet for a single check).
+ * @param stack     A deque to manage the DFS traversal (pass a new ArrayDeque for a single check).
+ * @return {@code true} if this class descends from the candidate; {@code false} otherwise.
+ */
+public boolean isAncestry(OntologyClass candidate, Set<OntologyClass> visited, Deque<OntologyClass> stack) {
+	if (this == candidate) return true;
+	
+	stack.clear();
+	// We don't necessarily clear 'visited' here if you are performing
+	// batch checks across different starting points.
+	
+	stack.push(this);
+	
+	while (!stack.isEmpty()) {
+		OntologyClass current = stack.pop();
+		
+		if (current == candidate) return true;
+		
+		if (visited.add(current)) { // Returns true if the element was not already present
+			for (OntologyClass p : current.parents) {
+				if (!visited.contains(p)) {
+					stack.push(p);
+				}
+			}
+		}
 	}
+	
 	return false;
 }
 
@@ -137,18 +173,19 @@ public boolean isHeritage(OntologyClass candidate) {
  * @return The current instance ({@code this}) to allow for method chaining.
  */
 public OntologyClass addParent(OntologyClass candidate) {
-	if(parents.contains(candidate)) { return this; }
+	if (parents.contains(candidate)) { return this; }
 	if (candidate == this) throw new OntoDirectoryException.OntologyAddParentSelf("Class \"" + name + "\" was tried be it's parent!");
-	if(isAncestry(candidate)) { return this; }
+	if (isAncestry(candidate)) { return this; }
 	if (candidate.isAncestry(this)) throw new OntoDirectoryException.
 		  OntologyAddParentCausesCycle("Class \"" + candidate.name + "\" was descendant of " + name + "!");
 	
 	boolean candidateAdded = false;
 	Iterator<OntologyClass> iterator = parents.iterator();
-	
+	HashSet<OntologyClass> visitedHS = new HashSet<>();
+	ArrayDeque<OntologyClass> toVisit = new ArrayDeque<>();
 	while (iterator.hasNext()) {
 		OntologyClass currentParent = iterator.next();
-		if (candidate.isAncestry(currentParent)) {
+		if (candidate.isAncestry(currentParent,  visitedHS, toVisit)) {
 			// Safely sever the old tie while iterating
 			currentParent.children.remove(this);
 			iterator.remove();

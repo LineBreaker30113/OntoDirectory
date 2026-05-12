@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 
 /**
  * Represents a discrete file residing within the Data Lake's immutable vault.
@@ -19,6 +20,8 @@ public class FileInterface {
 public int identity;
 public String diskName;
 public String actualName;
+
+public ArrayList<Integer> tagsByIdentity;
 
 /** The resolved, absolute physical path to the file on disk. */
 public Path actualFile;
