@@ -1,6 +1,7 @@
 package org.halim.dlake;
 
 import org.halim.hport.OntoDirectoryException;
+import org.halim.hport.OntologyMemento;
 import org.halim.hport.OntologyReadingService;
 import org.jetbrains.annotations.NotNull;
 
@@ -22,6 +23,7 @@ public OntologyHierarchyNew() {
 	ontologyClasses.add(OntologyClass.makeROOT_ONTOLOGY_CLASS("File"));
 }
 
+
 // /////////////////// Storing managements:
 
 public void loadAllFrom(@NotNull OntologyStorageService storageService, Path filesRoot) throws IOException {
@@ -32,6 +34,7 @@ public void saveTo(@NotNull OntologyStorageService storageService, Path filesRoo
 	storageService.saveOntologyHierarchy(filesRoot, this);
 	
 }
+
 
 // ////////////////// Ontology Managements:
 
@@ -79,47 +82,55 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 	public HashSet<FileInterface> getAllOntologyElementsSet(OntologyClass ontologyClass) {
 		HashSet<FileInterface> interfaces = new HashSet<>();
 		interfaces.addAll(filesPerOntology.get(getIdentityFromClass(ontologyClass)));
-		for(OntologyClass sub : ontologyClass.children) { interfaces.addAll(getAllOntologyElementsSet(sub)); };
+		for (OntologyClass sub : ontologyClass.children) {
+			interfaces.addAll(getAllOntologyElementsSet(sub));
+		}
+		;
 		return interfaces;
 	}
 	
-	@Override public boolean isElementOf(String className, FileInterface file) { return getOntologyElements(className).contains(file); }
 	@Override
 	public boolean isElementForFilter(OntologyClass ontologyClass, FileInterface file) {
 		return filesPerOntology.get(getIdentityFromClass(ontologyClass)).contains(file);
 	}
 	@Override
-	public boolean isDescendentForFilter(OntologyClass ontologyClass, FileInterface file) {
+	public boolean isDescendentForFilter(OntologyClass ontologyClass, @NotNull FileInterface file) {
+		for(Integer i : file.tagsByIdentity) if(getClassFromIdentity(i).isAncestry(ontologyClass)) return true;
 		return false;
 	}
 	
 	@Override
-	public ArrayList<FileInterface> getOntologyElements(OntologyFilter filter) {
-		ArrayList<FileInterface> result = new ArrayList<>();
-		for (FileInterface file : hierarchy.files) {
-			if (filter.filter(file)) {
-				result.add(file);
-			}
-		}
-		return result;
+	public List<FileInterface> getOntologyElements(@NotNull OntologyFilter filter) {
+		return fileInterfaces.stream().filter(filter::filter).toList();
 	}
 	
 	@Override
 	public void addOntologyServiceListener(OntologyServiceListener ontologyServiceListener) {
 	
 	}
-	
-	@Override
-	public boolean isElementOfFilter(OntologyClass ontologyClass, FileInterface file) {
-		return false;
-	}
 }
 
 // Inherits reader capabilities to satisfy the port contract
-public class OntologyHierarchyManager extends OntologyHierarchy.OntologyHierarchyReader implements OntologyReadingService.OntologyManagingService {
+public class OntologyHierarchyManager extends OntologyHierarchyReader implements OntologyReadingService.OntologyManagingService {
+	
+	private final Stack<OntologyMemento> undoStack = new Stack<>();
+	private final Stack<OntologyMemento> redoStack = new Stack<>();
+	
+	// Guardrail to prevent recording historical actions while currently playing back history
+	private boolean isReplaying = false;
+	
+	private void recordAction(OntologyMemento memento) {
+		if (isReplaying) return;
+		undoStack.push(memento);
+		redoStack.clear(); // Any new action completely invalidates the redo future
+	}
 	
 	@Override
 	public void createOntologyClass(String name, ArrayList<String> parentNames, ArrayList<String> childrenNames) {
+		if (getClassFromName(name) != null) {
+			throw new OntoDirectoryException("Class '" + name + "' already exists.");
+		}
+		
 		OntologyClass noc = new OntologyClass(name, getRootOntologyClass());
 		if (parentNames != null) {
 			for (String pName : parentNames) {
@@ -127,8 +138,7 @@ public class OntologyHierarchyManager extends OntologyHierarchy.OntologyHierarch
 				if (parent != null) {
 					noc.addParent(parent);
 				} else {
-					throw new OntoDirectoryException.NullGivenAsOntologyClassException(
-						  "One element in the \"parents\" array of \"" + name + "\" was null");
+					throw new OntoDirectoryException("One element in the parents array of '" + name + "' was null");
 				}
 			}
 		}
@@ -138,18 +148,30 @@ public class OntologyHierarchyManager extends OntologyHierarchy.OntologyHierarch
 				if (child != null) {
 					child.addParent(noc);
 				} else {
-					throw new OntoDirectoryException.NullGivenAsOntologyClassException(
-						  "One element in the \"children\" array of \"" + name + "\" was null");
+					throw new OntoDirectoryException("One element in the children array of '" + name + "' was null");
 				}
 			}
 		}
 		
-		ontologyClasses.add(noc);
-		ontologyContainers.add(new OntologyHierarchy.OntologyElements(noc));
+		// Locate a tombstoned index, or append to the end
+		int insertIndex = ontologyClasses.indexOf(null);
+		if (insertIndex == -1) {
+			ontologyClasses.add(noc);
+			filesPerOntology.add(new ArrayList<>());
+		} else {
+			ontologyClasses.set(insertIndex, noc);
+			filesPerOntology.set(insertIndex, new ArrayList<>());
+		}
+		
+		OntologyMemento memento = new OntologyMemento();
+		memento.actionType = OntologyMemento.ActionType.Create;
+		memento.primaryTarget = name;
+		recordAction(memento);
 	}
+	
 	public void createOntologyClass(String name) { createOntologyClass(name, null, null); }
 	public void createNewSubClass(String parentC, String name) {
-		createOntologyClass(name, (ArrayList<String>) List.of(parentC), null);
+		createOntologyClass(name, new ArrayList<>(List.of(parentC)), null);
 	}
 	
 	@Override
@@ -161,70 +183,117 @@ public class OntologyHierarchyManager extends OntologyHierarchy.OntologyHierarch
 		for (OntologyClass parent : oc.parents) { parent.children.remove(oc); }
 		for (OntologyClass child : oc.children) { child.parents.remove(oc); }
 		
-		ontologyClasses.remove(oc);
-		ontologyContainers.remove(getElementsFromClass(oc));
+		// TOMBSTONING: Do not use .remove() as it shifts the contiguous memory array
+		int targetIndex = getIdentityFromClass(oc);
+		ontologyClasses.set(targetIndex, null);
+		filesPerOntology.set(targetIndex, null);
+		
+		OntologyMemento memento = new OntologyMemento();
+		memento.actionType = OntologyMemento.ActionType.Remove;
+		memento.primaryTarget = name;
+		recordAction(memento);
 	}
 	
 	@Override
 	public void addParent(String className, String parentName) {
-		getClassFromName(className).addParent(getClassFromName(parentName));
+		OntologyClass child = getClassFromName(className);
+		OntologyClass parent = getClassFromName(parentName);
+		if (child != null && parent != null) {
+			child.addParent(parent);
+			
+			OntologyMemento memento = new OntologyMemento();
+			memento.actionType = OntologyMemento.ActionType.AddParent;
+			memento.primaryTarget = className;
+			memento.secondaryTarget = parentName;
+			recordAction(memento);
+		}
 	}
+	
 	@Override
 	public void removeParent(String className, String parentName) {
-		getClassFromName(className).removeParent(getClassFromName(parentName));
+		OntologyClass child = getClassFromName(className);
+		OntologyClass parent = getClassFromName(parentName);
+		if (child != null && parent != null) {
+			child.removeParent(parent);
+			
+			OntologyMemento memento = new OntologyMemento();
+			memento.actionType = OntologyMemento.ActionType.RemoveParent;
+			memento.primaryTarget = className;
+			memento.secondaryTarget = parentName;
+			recordAction(memento);
+		}
 	}
 	
 	@Override
 	public void addElement(String className, FileInterface file) {
-		addElementForManager(getClassFromName(className), file);
-	}
-	public void addElementForManager(OntologyClass ontologyClass, FileInterface file) {
-		getElementsFromClass(ontologyClass).files.add(file);
+		OntologyClass targetClass = getClassFromName(className);
+		if (targetClass == null) return;
+		
+		ArrayList<FileInterface> fileList = filesPerOntology.get(getIdentityFromClass(targetClass));
+		if (!fileList.contains(file)) {
+			fileList.add(file);
+			
+			OntologyMemento memento = new OntologyMemento();
+			memento.actionType = OntologyMemento.ActionType.AddElement;
+			memento.primaryTarget = className;
+			memento.targetFile = file;
+			recordAction(memento);
+		}
 	}
 	
 	@Override
 	public void removeElement(String className, FileInterface file) {
-	
+		OntologyClass targetClass = getClassFromName(className);
+		if (targetClass == null) return;
+		
+		ArrayList<FileInterface> fileList = filesPerOntology.get(getIdentityFromClass(targetClass));
+		if (fileList.remove(file)) {
+			OntologyMemento memento = new OntologyMemento();
+			memento.actionType = OntologyMemento.ActionType.RemoveElement;
+			memento.primaryTarget = className;
+			memento.targetFile = file;
+			recordAction(memento);
+		}
 	}
 	
 	@Override
 	public void renameOntologyClass(String className, String newName) {
-	
+		OntologyClass targetClass = getClassFromName(className);
+		if (targetClass != null && targetClass != getRootOntologyClass()) {
+			targetClass.name = newName;
+			
+			OntologyMemento memento = new OntologyMemento();
+			memento.actionType = OntologyMemento.ActionType.Rename;
+			memento.primaryTarget = className;
+			memento.secondaryTarget = newName;
+			recordAction(memento);
+		}
 	}
 	
 	@Override
 	public void undo() {
-		// MVP: History tracking deferred.
-		System.err.println("Undo action invoked, but history tracking is deferred for MVP.");
+		if (undoStack.isEmpty()) return;
+		isReplaying = true;
+		try {
+			OntologyMemento memento = undoStack.pop();
+			memento.undo(this);
+			redoStack.push(memento);
+		} finally {
+			isReplaying = false;
+		}
 	}
 	
 	@Override
 	public void redo() {
-		// MVP: History tracking deferred.
-		System.err.println("Redo action invoked, but history tracking is deferred for MVP.");
-	}
-	
-	// Legacy compat
-	public void addFileToClass(FileInterface fi, OntologyClass oc) { addElementForManager(oc, fi); }
-	
-	@Override
-	public ArrayList<FileInterface> getOntologyElements(String className) {
-		return null;
-	}
-	
-	@Override
-	public boolean isElementOf(String className, FileInterface file) {
-		return false;
-	}
-	
-	@Override
-	public void addOntologyServiceListener(OntologyServiceListener ontologyServiceListener) {
-	
-	}
-	
-	@Override
-	public boolean isElementOfFilter(OntologyClass ontologyClass, FileInterface file) {
-		return false;
+		if (redoStack.isEmpty()) return;
+		isReplaying = true;
+		try {
+			OntologyMemento memento = redoStack.pop();
+			memento.undo(this); // undoing an inverse operation executes the original action
+			undoStack.push(memento);
+		} finally {
+			isReplaying = false;
+		}
 	}
 }
 

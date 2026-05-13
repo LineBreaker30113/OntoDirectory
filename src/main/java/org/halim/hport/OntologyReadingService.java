@@ -5,6 +5,7 @@ import org.halim.dlake.OntologyClass;
 import org.halim.dlake.OntologyFilter;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public interface OntologyReadingService {
 
@@ -36,7 +37,7 @@ boolean isElementForFilter(OntologyClass ontologyClass, FileInterface file);
 boolean isDescendentForFilter(OntologyClass ontologyClass, FileInterface file);
 
 /** Returns all the ontology Elements that satisfy the filter for the domain. */
-ArrayList<FileInterface> getOntologyElements(OntologyFilter filter);
+List<FileInterface> getOntologyElements(OntologyFilter filter);
 
 
 void addOntologyServiceListener(OntologyServiceListener ontologyServiceListener);
@@ -59,7 +60,5 @@ interface OntologyManagingService extends OntologyReadingService {
 	void undo(); void redo();
 	
 }
-
-boolean isElementOfFilter(OntologyClass ontologyClass, FileInterface file);
 
 }
