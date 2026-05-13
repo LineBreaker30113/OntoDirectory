@@ -4,65 +4,99 @@ import org.halim.hport.OntoDirectoryException;
 import org.halim.hport.OntologyReadingService;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.*;
 
 public class OntologyHierarchyNew {
 
 public ArrayList<OntologyClass> ontologyClasses;
-
+public ArrayList<ArrayList<FileInterface>> filesPerOntology;
+public ArrayList<FileInterface> fileInterfaces;
 
 public OntologyHierarchyNew() {
 	ontologyClasses = new ArrayList<>();
+	filesPerOntology = new ArrayList<>();
+	fileInterfaces = new ArrayList<>();
 	ontologyClasses.add(OntologyClass.makeROOT_ONTOLOGY_CLASS("File"));
 }
+
+// /////////////////// Storing managements:
+
+public void loadAllFrom(@NotNull OntologyStorageService storageService, Path filesRoot) throws IOException {
+	storageService.loadOntology(filesRoot, this);
+	
+}
+public void saveTo(@NotNull OntologyStorageService storageService, Path filesRoot) throws IOException {
+	storageService.saveOntologyHierarchy(filesRoot, this);
+	
+}
+
+// ////////////////// Ontology Managements:
 
 public OntologyClass getClassFromIdentity(int anInt) { return ontologyClasses.get(anInt); }
 
 public int getIdentityFromClass(@NotNull OntologyClass oc) { return ontologyClasses.indexOf(oc); }
 
 
+// ////////////////// Ontology Service:
+
+
 public class OntologyHierarchyReader implements OntologyReadingService {
 	public final OntologyClass ROOT_TEMPORAL_CLASS;
+	public final OntologyHierarchyNew hierarchy;
+	public OntologyClass domainEntry; // FIX_LATER TODO when sub tags has parent outside of domain.
 	
 	public OntologyHierarchyReader() {
 		ROOT_TEMPORAL_CLASS = OntologyClass.makeROOT_ONTOLOGY_CLASS("View Since:" + new Date().getTime());
+		hierarchy = OntologyHierarchyNew.this;
 	}
 	
-	@Override
-	public OntologyClass getRootOntologyClass() { return ontologyClasses.getFirst(); }
-	
+	@Override public OntologyClass getRootOntologyClass() { return ontologyClasses.getFirst(); }
 	@Override
 	public OntologyClass getClassFromName(String name) {
 		for(OntologyClass oc : ontologyClasses) { if(oc.name.equals(name)) { return oc; } }
 		return null;
 	}
 	
+	@Override public String getDomain() { return domainEntry.name; }
+	@Override public void setDomain(OntologyClass domain) { this.domainEntry = domain; }
 	@Override
 	public ArrayList<FileInterface> getOntologyElements(String className) {
-		return null;
+		return filesPerOntology.get(getIdentityFromClass(getClassFromName(className)));
 	}
-	
 	@Override
 	public ArrayList<FileInterface> getAllOntologyElements(String className) {
-		return null;
+		OntologyClass oc = getClassFromName(className);
+		HashSet<FileInterface> interfaces = new HashSet<>();
+		interfaces.addAll(filesPerOntology.get(getIdentityFromClass(oc)));
+		for(OntologyClass sub : oc.children) { interfaces.addAll(getAllOntologyElementsSet(sub)); };
+		ArrayList<FileInterface> result = new ArrayList<>();
+		result.addAll(interfaces);
+		return result;
+	}
+	public HashSet<FileInterface> getAllOntologyElementsSet(OntologyClass ontologyClass) {
+		HashSet<FileInterface> interfaces = new HashSet<>();
+		interfaces.addAll(filesPerOntology.get(getIdentityFromClass(ontologyClass)));
+		for(OntologyClass sub : ontologyClass.children) { interfaces.addAll(getAllOntologyElementsSet(sub)); };
+		return interfaces;
 	}
 	
-	@Override
-	public boolean isElementOf(String className, FileInterface file) {
-		return false;
-	}
-	
+	@Override public boolean isElementOf(String className, FileInterface file) { return getOntologyElements(className).contains(file); }
 	@Override
 	public boolean isElementForFilter(OntologyClass ontologyClass, FileInterface file) {
+		return filesPerOntology.get(getIdentityFromClass(ontologyClass)).contains(file);
+	}
+	@Override
+	public boolean isDescendentForFilter(OntologyClass ontologyClass, FileInterface file) {
 		return false;
 	}
 	
 	@Override
 	public ArrayList<FileInterface> getOntologyElements(OntologyFilter filter) {
 		ArrayList<FileInterface> result = new ArrayList<>();
-		for (FileInterface file : owner.files) {
+		for (FileInterface file : hierarchy.files) {
 			if (filter.filter(file)) {
 				result.add(file);
 			}
