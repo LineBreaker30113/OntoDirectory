@@ -1,6 +1,8 @@
 package org.halim.hport;
 
 import javafx.util.Pair;
+import org.halim.dlake.FileInterface;
+import org.halim.dlake.OntologyFilter;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -19,8 +21,6 @@ interface OntoDirectoryServiceListener {
 	void onDataLakeLoad(DataLakeService dataLakeService);
 }
 
-
-
 interface DataLakeService {
 	
 	void saveChanges();
@@ -34,7 +34,11 @@ interface DataLakeService {
 		void onChange();
 	}
 	
+	void importFiles();
+	void importFiles(Path sourceDirectory);
+	void exportFiles(OntologyFilter filter);
+	void exportFiles(OntologyFilter filter, Path destinationFolder);
+	
 }
-
 
 }

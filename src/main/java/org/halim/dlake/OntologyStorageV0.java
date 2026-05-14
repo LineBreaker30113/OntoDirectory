@@ -1,6 +1,6 @@
 package org.halim.dlake;
 
-import org.halim.hport.OntoDirectoryException;
+import org.halim.OntoDirectoryException;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
@@ -58,7 +58,7 @@ public void closeFileSave(Path file) throws IOException {
 
 
 
-public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarchyNew target) throws IOException {
+public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarchyFast target) throws IOException {
 	ByteBuffer data = readFile(source, 102 << 16);
 	int elementCount = data.getInt();
 	
@@ -67,6 +67,7 @@ public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarch
 	
 	for (int i = 0; i < elementCount; i++) {
 		int payloadSize = data.getInt();
+		if(payloadSize == 0) { classes.set(i, null); continue; } // tombstone
 		int expectedNextPos = data.position() + payloadSize;
 		
 		int nameLen = data.getInt();
@@ -88,11 +89,12 @@ public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarch
 	}
 }
 
-public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyNew hierarchy) throws IOException {
+public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hierarchy) throws IOException {
 	try (DataOutputStream dos = requestFileSave(target)) {
 		ArrayList<OntologyClass> classes = hierarchy.ontologyClasses;
 		dos.writeInt(classes.size());
 		for (OntologyClass oc : classes) {
+			if(oc == null) { dos.write(0); continue; } // tombstone
 			byte[] nameBytes = oc.name.getBytes(StandardCharsets.UTF_8);
 			// Payload size = name_len(4) + name + parent_cnt(4) + parents(N*4) + child_cnt(4) + children(N*4)
 			int payloadSize = 12 + nameBytes.length + (oc.parents.size() * 4) + (oc.children.size() * 4);
@@ -127,6 +129,7 @@ public ArrayList<FileInterface> loadOntologyElementsFromFile(Path source) throws
 		fi.identity = i;
 		
 		data.get(diskBuf);
+		if(diskBuf[0] == 0) { files.add(null); continue; } // tombstone
 		fi.diskName = new String(diskBuf, StandardCharsets.US_ASCII).trim();
 		
 		data.get(nameBuf);
@@ -149,6 +152,7 @@ public void saveOntologyElements(Path target, @NotNull ArrayList<FileInterface> 
 		final byte[] padding = new byte[128]; // Reusable zero-filled array
 		
 		for (FileInterface fi : files) {
+			if(fi == null) { dos.writeInt(padding.length); continue; } // tombstone
 			// Disk Name (8 bytes ASCII)
 			byte[] dBytes = (fi.diskName == null) ? new byte[0] : fi.diskName.getBytes(StandardCharsets.US_ASCII);
 			dos.write(dBytes, 0, Math.min(8, dBytes.length));
@@ -171,20 +175,20 @@ public void saveOntologyElements(Path target, @NotNull ArrayList<FileInterface> 
 	closeFileSave(target);
 }
 
-public final String OH_STORAGE = "ontologyHierarchy.bin";
-public final String OE_STORAGE = "ontologyElements.bin";
-
-@Override
-public void loadOntology(@NotNull Path rootPath, @NotNull OntologyHierarchyNew targetHierarchy) throws IOException {
-	loadOntologyHierarchyFromFile(rootPath.resolve(OH_STORAGE),  targetHierarchy);
-	targetHierarchy.fileInterfaces = loadOntologyElementsFromFile(rootPath.resolve(OE_STORAGE));
-}
-
-@Override
-public void saveOntology(Path targetRoot, @NotNull OntologyHierarchyNew sourceHierarchy) throws IOException {
-	loadOntologyHierarchyFromFile(targetRoot.resolve(OH_STORAGE),  sourceHierarchy);
-	sourceHierarchy.fileInterfaces = loadOntologyElementsFromFile(targetRoot.resolve(OE_STORAGE));
-
-}
+//public final String OH_STORAGE = "ontologyHierarchy.bin";
+//public final String OE_STORAGE = "ontologyElements.bin";
+//
+//@Override
+//public void loadOntology(@NotNull Path rootPath, @NotNull OntologyHierarchyFast targetHierarchy) throws IOException {
+//	loadOntologyHierarchyFromFile(rootPath.resolve(OH_STORAGE),  targetHierarchy);
+//	targetHierarchy.fileInterfaces = loadOntologyElementsFromFile(rootPath.resolve(OE_STORAGE));
+//}
+//
+//@Override
+//public void saveOntology(Path targetRoot, @NotNull OntologyHierarchyFast sourceHierarchy) throws IOException {
+//	loadOntologyHierarchyFromFile(targetRoot.resolve(OH_STORAGE),  sourceHierarchy);
+//	sourceHierarchy.fileInterfaces = loadOntologyElementsFromFile(targetRoot.resolve(OE_STORAGE));
+//
+//}
 
 }

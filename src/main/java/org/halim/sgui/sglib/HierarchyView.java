@@ -1,7 +1,6 @@
 package org.halim.sgui.sglib;
 
 import org.halim.Listeners.LakeChangeListener;
-import org.halim.dlake.OntologyHierarchy;
 
 import javax.swing.*;
 

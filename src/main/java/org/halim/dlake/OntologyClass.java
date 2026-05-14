@@ -1,6 +1,6 @@
 package org.halim.dlake;
 
-import org.halim.hport.OntoDirectoryException;
+import org.halim.OntoDirectoryException;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 

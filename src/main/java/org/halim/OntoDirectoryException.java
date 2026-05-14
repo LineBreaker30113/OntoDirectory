@@ -1,4 +1,4 @@
-package org.halim.hport;
+package org.halim;
 
 public class OntoDirectoryException extends RuntimeException {
 public OntoDirectoryException(String message) { super(message); }

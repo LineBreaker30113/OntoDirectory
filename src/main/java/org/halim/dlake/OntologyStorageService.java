@@ -31,7 +31,7 @@ void closeFileSave(Path file) throws IOException;
 /**
  * Loads the hierarchy structure from the binary source.
  */
-void loadOntologyHierarchyFromFile(Path source, OntologyHierarchyNew target) throws IOException;
+void loadOntologyHierarchyFromFile(Path source, OntologyHierarchyFast target) throws IOException;
 
 /**
  * Loads the list of file interfaces (metadata) from the binary source.
@@ -41,7 +41,7 @@ ArrayList<FileInterface> loadOntologyElementsFromFile(Path source) throws IOExce
 /**
  * Persists the given ontology hierarchy to the target path.
  */
-void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyNew hierarchy) throws IOException;
+void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hierarchy) throws IOException;
 
 /**
  * Persists the list of file elements to the target path.
@@ -49,14 +49,14 @@ void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyNew hierarchy)
 void saveOntologyElements(Path target, @NotNull ArrayList<FileInterface> files) throws IOException;
 
 
-/**
- * Loads the whole ontology structure from the binary source.
- */
-void loadOntology(Path rootPath, OntologyHierarchyNew targetHierarchy) throws IOException;
-/**
- * Persists the given ontology hierarchy to the target path.
- */
-void saveOntology(Path targetRoot, @NotNull OntologyHierarchyNew hierarchy) throws IOException;
+///**
+// * Loads the whole ontology structure from the binary source.
+// */
+//void loadOntology(Path rootPath, OntologyHierarchyFast targetHierarchy) throws IOException;
+///**
+// * Persists the given ontology hierarchy to the target path.
+// */
+//void saveOntology(Path targetRoot, @NotNull OntologyHierarchyFast hierarchy) throws IOException;
 
 /**
  * Persists the list of file elements to the target path.

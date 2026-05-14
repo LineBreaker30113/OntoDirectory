@@ -1,7 +1,6 @@
 package org.halim;
 
 import org.halim.dlake.OntologyClass;
-import org.halim.dlake.OntologyHierarchy;
 
 public interface Listeners {
 

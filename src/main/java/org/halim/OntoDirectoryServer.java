@@ -2,6 +2,7 @@ package org.halim;
 
 import javafx.util.Pair;
 import org.halim.dlake.DataLakeManager;
+import org.halim.dlake.OntologyStorageV0;
 import org.halim.hport.OntoDirectoryService;
 import org.jetbrains.annotations.NotNull;
 
@@ -24,7 +25,7 @@ private final List<OntoDirectoryServiceListener> listeners = new ArrayList<>();
 @Override
 public void loadDataLake(String fullPath) {
 	Path lakePath = Paths.get(fullPath);
-	DataLakeManager lake = new DataLakeManager(lakePath);
+	DataLakeManager lake = new DataLakeManager(lakePath, new OntologyStorageV0());
 	listeners.forEach(listener -> listener.onDataLakeLoad(lake));
 }
 

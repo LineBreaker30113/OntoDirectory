@@ -4,7 +4,6 @@ import org.halim.Listeners.LakeChangeListener;
 import org.halim.Listeners.TagChangeListener;
 import org.halim.dlake.DataLakeManager;
 import org.halim.dlake.OntologyClass;
-import org.halim.dlake.OntologyHierarchy;
 import org.halim.sgui.sglib.ContentView;
 import org.halim.sgui.sglib.HierarchyView;
 import org.halim.sgui.WorkspacePanel;

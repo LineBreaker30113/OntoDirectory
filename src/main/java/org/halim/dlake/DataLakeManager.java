@@ -1,184 +1,224 @@
 package org.halim.dlake;
 
+import org.halim.OntoDirectoryException;
 import org.halim.hport.OntoDirectoryService;
 import org.halim.hport.OntologyReadingService;
 import org.jetbrains.annotations.NotNull;
+
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.Random;
 
 public class DataLakeManager implements OntoDirectoryService.DataLakeService {
 
-public Path managerPath;
-public Path lakePath;
-public OntologyHierarchy ontologyHierarchy;
-public ArrayList<FileInterface> files = new ArrayList<>();
+public static final String lakePathSuffix = ".DATA_LAKE",
+	  configFileSuffix = ".odConfig.bin",
+	  importsPathSuffix = "imports",
+	  exportsPathSuffix = "exports",
+	  hierarchyPathSuffix = ".ontologyClasses.bin",
+	  elementsPathSuffix = ".identities.bin";
 
-public DataLakeManager(@NotNull Path managerPath) {
+public static final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yy-MM-dd-HH-mm-ss");
+
+public final Path managerPath;
+
+// The Domain Objects
+public OntologyHierarchyFast ontologyHierarchy;
+private final OntologyStorageService storageService;
+
+private final List<DataLakeServiceListener> listeners = new ArrayList<>();
+
+public Path getLakePath() { return this.managerPath.resolve(lakePathSuffix); }
+public Path getLakeConfig() { return this.managerPath.resolve(configFileSuffix); }
+public Path getLakeImports() { return this.managerPath.resolve(importsPathSuffix); }
+public Path getLakeExports() { return this.managerPath.resolve(exportsPathSuffix); }
+public Path getLakeHierarchy() { return this.managerPath.resolve(hierarchyPathSuffix); }
+public Path getLakeElements() { return this.managerPath.resolve(elementsPathSuffix); }
+
+private OntologyReadingService.OntologyManagingService ontologyHierarchyManager;
+
+public DataLakeManager(@NotNull Path managerPath, @NotNull OntologyStorageService storageService) {
 	this.managerPath = managerPath;
-	this.lakePath = managerPath.resolve(".DATA_LAKE");
+	this.storageService = storageService;
 	
-	if (!Files.exists(lakePath)) {
-		try {
-			Files.createDirectories(lakePath);
-			Files.createDirectories(managerPath.resolve("imports"));
-			Files.createDirectories(managerPath.resolve("exports"));
-		} catch (IOException e) {
-			System.err.println("Failed to build directory structure: " + e.getMessage());
-		}
-		ontologyHierarchy = new OntologyHierarchy(this);
-		saveStateToDisk();
-	} else {
-		// FIX: Hydrate File Identities FIRST so the Ontology Graph has instances to point to
-		Path isp = lakePath.resolve("identities.bin");
-		if (Files.exists(isp)) {
-			try (RandomAccessFile raf = new RandomAccessFile(isp.toFile(), "r")) {
-				int elementCount = (int) (raf.length() / FileInterface.RECORD_SIZE);
-				// Pre-allocate empty instances
-				for(int i=0; i<elementCount; i++) files.add(new FileInterface());
-				
-				byte[] recordBuffer = new byte[FileInterface.RECORD_SIZE];
-				for (FileInterface file : files) {
-					raf.readFully(recordBuffer);
-					file.deserialize(this, ByteBuffer.wrap(recordBuffer));
-				}
-			} catch (IOException e) {
-				throw new RuntimeException("Failed to hydrate File Identities", e);
-			}
-		}
-		
-		// FIX: Hydrate Hierarchy SECOND
-		try {
-			ontologyHierarchy = new OntologyHierarchy(this, lakePath);
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to hydrate Ontology Hierarchy", e);
-		}
-	}
-}
-
-public void saveStateToDisk() {
-	try {
-		ontologyHierarchy.saveToDisk(lakePath);
-		
-		Path isp = lakePath.resolve("identities.bin");
-		try (RandomAccessFile raf = new RandomAccessFile(isp.toFile(), "rw")) {
-			raf.setLength((long) files.size() * FileInterface.RECORD_SIZE);
-			raf.seek(0);
-			
-			ByteBuffer buffer = ByteBuffer.allocate(FileInterface.RECORD_SIZE);
-			for (FileInterface file : files) {
-				buffer.clear();
-				file.serialize(buffer);
-				raf.write(buffer.array());
-			}
-		}
-		System.out.println("Data Lake State Synced to Disk.");
+	if(!Files.exists(getLakeConfig())) createLake();
+	else try {
+		// 1. Storage service handles the heavy lifting
+		storageService.loadOntologyHierarchyFromFile(getLakeHierarchy(), ontologyHierarchy);
+		ontologyHierarchy.fileInterfaces = storageService.loadOntologyElementsFromFile(getLakeElements());
+		ontologyHierarchy.onLoad();
 	} catch (IOException e) {
-		System.err.println("Failed to save Lake state: " + e.getMessage());
+		throw new OntoDirectoryException("Failed to hydrate Data Lake from disk: " + e.getMessage());
 	}
+	ontologyHierarchyManager = ontologyHierarchy.new OntologyHierarchyManager();
 }
 
-public OntologyClass scanImports() {
-	Path importsPath = managerPath.resolve("imports");
-	
+private void createLake() {
 	try {
-		if (!Files.exists(importsPath)) {
-			Files.createDirectories(importsPath);
-			return null;
+		Files.createDirectories(getLakePath());
+		Files.createFile(getLakeConfig());
+		Files.createDirectories(getLakeImports());
+		Files.createDirectories(getLakeExports());
+	} catch (IOException e) {
+		throw new OntoDirectoryException("Failed to build directory structure: " + e.getMessage());
+	}
+	ontologyHierarchy = new OntologyHierarchyFast();
+	saveChanges();
+}
+
+@Override
+public void importFiles() {
+	importFiles(getLakeImports());
+}
+
+@Override
+public void importFiles(Path sourceDirectory) {
+	try {
+		if (!Files.exists(sourceDirectory)) {
+			if (sourceDirectory.equals(getLakeImports())) {
+				Files.createDirectories(sourceDirectory);
+			}
+			return;
 		}
 		
-		List<Path> unindexedFiles = Files.walk(importsPath, 1)
+		// If a single file is passed instead of a directory, handle it securely
+		if (Files.isRegularFile(sourceDirectory)) {
+			processSingleImport(sourceDirectory);
+			saveChanges();
+			notifyListeners();
+			return;
+		}
+		
+		List<Path> unindexedFiles = Files.walk(sourceDirectory, 1)
 			  .filter(Files::isRegularFile)
 			  .toList();
 		
-		if (unindexedFiles.isEmpty()) return null;
+		if (unindexedFiles.isEmpty()) return;
 		
-		long timestamp = System.currentTimeMillis() / 1000L;
-		String temporalClassName = "imported_at_" + timestamp;
-		ontologyHierarchy.manager.createNewClass(temporalClassName);
-		OntologyClass temporalClass = ontologyHierarchy.manager.getClassFromName(temporalClassName);
+		String temporalClassName = "imported_at_" + simpleDateFormat.format(new Date());
 		
-		Random rnd = new Random();
-		String nonHexChars = "ghijklmnopqrstuvwxyz";
+		// Use the manager port to safely create the class
+		OntologyReadingService.OntologyManagingService oms = getOntologyManagingService();
+		oms.createOntologyClass(temporalClassName, null, null);
+		OntologyClass temporalClass = oms.getClassFromName(temporalClassName);
+		OntologyClass rootClass = oms.getClassFromName("File");
 		
 		for (Path physicalFile : unindexedFiles) {
-			int newId = files.size();
-			String hexSuffix = Integer.toHexString(newId).toLowerCase();
-			
-			StringBuilder diskNameBuilder = new StringBuilder();
-			int padLength = 8 - hexSuffix.length();
-			for (int i = 0; i < padLength; i++) {
-				diskNameBuilder.append(nonHexChars.charAt(rnd.nextInt(nonHexChars.length())));
-			}
-			diskNameBuilder.append(hexSuffix);
-			String diskName = diskNameBuilder.toString();
-			
-			Path newLocation = lakePath.resolve(diskName);
-			Files.move(physicalFile, newLocation);
-			
-			FileInterface fi = new FileInterface();
-			fi.identity = newId;
-			fi.diskName = diskName;
-			
-			String originalName = physicalFile.getFileName().toString();
-			byte[] nameBytes = originalName.getBytes(StandardCharsets.UTF_8);
-			if (nameBytes.length > 128) {
-				fi.actualName = new String(nameBytes, 0, 128, StandardCharsets.UTF_8);
-			} else {
-				fi.actualName = originalName;
-			}
-			
-			fi.actualFile = newLocation;
-			files.add(fi);
-			
-			ontologyHierarchy.manager.addFileToClass(fi, temporalClass);
-			ontologyHierarchy.manager.addFileToClass(fi, ontologyHierarchy.manager.getClassFromName("File"));
+			processSingleImportInternal(physicalFile, temporalClass, rootClass, oms);
 		}
 		
-		saveStateToDisk();
-		return temporalClass;
+		saveChanges();
+		notifyListeners();
 		
 	} catch (IOException e) {
-		System.err.println("Fatal Error during Ingestion: " + e.getMessage());
-		return null;
+		throw new OntoDirectoryException("Fatal Error during Ingestion: " + e.getMessage());
 	}
 }
 
-public FileInterface getFileFromIdentity(int identity) {
-	for(FileInterface fi : files) {
-		if(fi.identity == identity) { return fi; }
+private void processSingleImport(Path physicalFile) {
+	long timestamp = System.currentTimeMillis() / 1000L;
+	String temporalClassName = "imported_at_" + timestamp;
+	
+	OntologyReadingService.OntologyManagingService oms = getOntologyManagingService();
+	oms.createOntologyClass(temporalClassName, null, null);
+	
+	processSingleImportInternal(
+		  physicalFile,
+		  oms.getClassFromName(temporalClassName),
+		  oms.getClassFromName("File"),
+		  oms
+	);
+}
+
+private void processSingleImportInternal(Path physicalFile, OntologyClass temporalClass, OntologyClass rootClass, OntologyReadingService.OntologyManagingService oms) {
+	int newId = ontologyHierarchy.fileInterfaces.size();
+	String diskName = FileInterface.getDiskNameFor(newId);
+	
+	FileInterface fi = new FileInterface();
+	fi.identity = newId;
+	fi.actualFile = physicalFile; // Temporary old path
+	
+	String originalName = physicalFile.getFileName().toString();
+	byte[] nameBytes = originalName.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+	if (nameBytes.length > 128) {
+		fi.actualName = new String(nameBytes, 0, 128, java.nio.charset.StandardCharsets.UTF_8);
+	} else {
+		fi.actualName = originalName;
 	}
-	return null;
+	
+	// Trigger robust rename and move
+	fi.renameDisk(diskName, getLakePath());
+	
+	ontologyHierarchy.fileInterfaces.add(fi);
+	
+	// Wire it into the DAG using the manager port
+	oms.addElement(temporalClass.name, fi);
+	oms.addElement(rootClass.name, fi);
+}
+
+@Override
+public void exportFiles(OntologyFilter filter) {
+	exportFiles(filter, getLakeExports());
+}
+
+@Override
+public void exportFiles(OntologyFilter filter, Path destinationFolder) {
+	try {
+		if (!Files.exists(destinationFolder)) {
+			Files.createDirectories(destinationFolder);
+		}
+		
+		// Delegate the search entirely to the port
+		List<FileInterface> matchedFiles = getOntologyReadingService().getOntologyElements(filter);
+		
+		for (FileInterface file : matchedFiles) {
+			Path targetPath = destinationFolder.resolve(file.actualName);
+			
+			// Copy so the archive retains the original
+			Files.copy(file.actualFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+		}
+	} catch (IOException e) {
+		throw new OntoDirectoryException("Failed to export files to " + destinationFolder.getFileName() + ": " + e.getMessage());
+	}
 }
 
 @Override
 public void saveChanges() {
-
+	try {
+		storageService.saveOntologyHierarchy(getLakeHierarchy(), ontologyHierarchy);
+		storageService.saveOntologyElements(getLakeElements(), ontologyHierarchy.fileInterfaces);
+		System.out.println("Data Lake State Synced to Disk.");
+	} catch (IOException e) {
+		throw new OntoDirectoryException("Failed to save Lake state: " + e.getMessage());
+	}
 }
 
 @Override
 public OntologyReadingService getOntologyReadingService() {
-	return null;
+	return ontologyHierarchy.new OntologyHierarchyReader();
 }
 
 @Override
 public OntologyReadingService.OntologyManagingService getOntologyManagingService() {
-	return null;
+	return ontologyHierarchyManager;
 }
 
 @Override
 public Path getRootPath() {
-	return null;
+	return managerPath;
 }
 
 @Override
-public void addDataLakeServiceListener(DataLakeServiceListener dataLakeServiceListener) {
+public void addDataLakeServiceListener(DataLakeServiceListener listener) {
+	if (!listeners.contains(listener)) listeners.add(listener);
+}
 
+private void notifyListeners() {
+	for (DataLakeServiceListener listener : listeners) listener.onChange();
 }
 }
