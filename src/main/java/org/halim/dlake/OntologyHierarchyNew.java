@@ -30,11 +30,49 @@ public void loadAllFrom(@NotNull OntologyStorageService storageService, Path fil
 	storageService.loadOntology(filesRoot, this);
 	
 }
+/**
+ * Defragments the Data Lake by removing tombstoned (null) entries and recalculating
+ * all foreign key references (Integer Identities).
+ * WARNING: This alters persistent Integer IDs. Do not run implicitly on standard saves.
+ */
+public void vacuumDatabase(Path dataLakePath) throws IOException {
+	fileInterfaces.removeIf(Objects::isNull);
+	for (int i = 0; i < fileInterfaces.size(); i++) {
+		fileInterfaces.get(i).renameDisk(FileInterface.getNameFor(i), dataLakePath);
+		fileInterfaces.get(i).identity = i;
+	}
+	ArrayList<Integer> toRemove = new ArrayList<>();
+	for (int i = 0; i < ontologyClasses.size(); i++) {
+		if (ontologyClasses.get(i) == null) {
+			toRemove.add(i);
+		}
+	}
+	if (toRemove.isEmpty()) return;
+	
+	// 3. Recalculate Foreign Keys (Tags attached to files) safely
+	for (FileInterface fi : fileInterfaces) {
+		if (fi.tagsByIdentity == null) continue;
+		// Iterate backwards so we can safely remove tags if needed
+		for (int ti = fi.tagsByIdentity.size() - 1; ti >= 0; ti--) {
+			int oldTagId = fi.tagsByIdentity.get(ti);
+			int shiftAmount = 0;
+			for (int deadIndex : toRemove) {
+				if (deadIndex < oldTagId) shiftAmount++;
+				else break; // toRemove is sorted ascending naturally
+			}
+			fi.tagsByIdentity.set(ti, oldTagId - shiftAmount);
+		}
+	}
+	for (int i = toRemove.size() - 1; i >= 0; i--) {
+		int deadIndex = toRemove.get(i);
+		ontologyClasses.remove(deadIndex);
+	}
+	System.out.println("Database Vacuum Complete. Reclaimed " + toRemove.size() + " class identities.");
+}
 public void saveTo(@NotNull OntologyStorageService storageService, Path filesRoot) throws IOException {
 	storageService.saveOntologyHierarchy(filesRoot, this);
 	
 }
-
 
 // ////////////////// Ontology Managements:
 
@@ -59,7 +97,7 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 	@Override public OntologyClass getRootOntologyClass() { return ontologyClasses.getFirst(); }
 	@Override
 	public OntologyClass getClassFromName(String name) {
-		for(OntologyClass oc : ontologyClasses) { if(oc.name.equals(name)) { return oc; } }
+		for(OntologyClass oc : ontologyClasses) if(oc != null && oc.name.equals(name)) return oc;
 		return null;
 	}
 	
@@ -186,6 +224,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		// TOMBSTONING: Do not use .remove() as it shifts the contiguous memory array
 		int targetIndex = getIdentityFromClass(oc);
 		ontologyClasses.set(targetIndex, null);
+		filesPerOntology.get(targetIndex).forEach(fi -> fi.tagsByIdentity.remove(Integer.valueOf(targetIndex)));
 		filesPerOntology.set(targetIndex, null);
 		
 		OntologyMemento memento = new OntologyMemento();

@@ -134,6 +134,7 @@ public ArrayList<FileInterface> loadOntologyElementsFromFile(Path source) throws
 		
 		int tagCount = data.getInt();
 		fi.tagsByIdentity = new ArrayList<>(tagCount);
+		if(tagCount == 0) { fi.tagsByIdentity.add(0); } // no parent means element of "File" tag.
 		for (int j = 0; j < tagCount; j++) {
 			fi.tagsByIdentity.add(data.getInt());
 		}
