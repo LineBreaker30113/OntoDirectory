@@ -19,7 +19,7 @@ import java.util.Queue;
  * The reason it is called WorkspaceController because the view elements
  * are created here which enables the access to the model.
  * */
-public class WorkspaceController {// The currently active Data Lake data
+public class WorkspaceControllerDeprecated {// The currently active Data Lake data
 
 public static final String filesVN = "filesV", notesVN = "notesV",
 	  treeVN = "treeV", graphVN = "graphV", vennVN = "vennV",
@@ -29,7 +29,7 @@ public static final String filesVN = "filesV", notesVN = "notesV",
 private HierarchyView treeView, graphView, vennView;
 private ContentView filesView, notesView;
 
-public final ApplicationController owner;
+public final ApplicationControllerDeprecated owner;
 
 public JPanel getView(@NotNull String name) {
 	if(name.equals(filesVN)) { return filesView; }
@@ -221,7 +221,7 @@ void initViews() {
 	new Thread(owner::registerWSViews).start();
 }
 
-public WorkspaceController(ApplicationController owner) {
+public WorkspaceControllerDeprecated(ApplicationControllerDeprecated owner) {
 	this.owner = owner;
 	SwingUtilities.invokeLater(this::initViews);
 	

@@ -1,31 +1,27 @@
 package org.halim;
 
-import javafx.util.Pair;
 import org.halim.dlake.DataLakeManager;
-import org.halim.hport.OntoDirectoryService;
 import org.halim.sgui.GUI_RootPanel;
 import org.halim.sgui.WorkspacePanel;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Future;
 
 /** Concerned with how the application GUI is managed. Later may decouple From GUI. */
-public class ApplicationController {
+public class ApplicationControllerDeprecated {
 
 public GUI_RootPanel view;
-public WorkspaceController wsModeller;
+public WorkspaceControllerDeprecated wsModeller;
 
 // Memory map to hold and instantly swap between instantiated Data Lakes
 private final Map<Path, DataLakeManager> activeLakes = new HashMap<>();
 
-public ApplicationController() {
+public ApplicationControllerDeprecated() {
 	SwingUtilities.invokeLater(() -> this.view = new GUI_RootPanel(this));
-	this.wsModeller = new WorkspaceController(this);
+	this.wsModeller = new WorkspaceControllerDeprecated(this);
 }
 
 public void deployTo(@NotNull JFrame applicationWindow) {
@@ -37,13 +33,13 @@ public void deployTo(@NotNull JFrame applicationWindow) {
 }
 
 public WorkspacePanel getWSP() { return view.workspacePanel; }
-public WorkspaceController getWSC() { return wsModeller; }
+public WorkspaceControllerDeprecated getWSC() { return wsModeller; }
 
 public void registerWSViews() {
 	SwingUtilities.invokeLater(() -> {
-		for(String name : WorkspaceController.vnames) {
+		for(String name : WorkspaceControllerDeprecated.vnames) {
 			// Initialize all, but only pin Tree and Files to the visible Workspace
-			if (name.equals(WorkspaceController.treeVN) || name.equals(WorkspaceController.filesVN)) {
+			if (name.equals(WorkspaceControllerDeprecated.treeVN) || name.equals(WorkspaceControllerDeprecated.filesVN)) {
 				getWSP().addPanel(name, getWSC().getView(name));
 			}
 		}

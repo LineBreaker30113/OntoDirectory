@@ -72,9 +72,7 @@ private void createLake() {
 }
 
 @Override
-public void importFiles() {
-	importFiles(getLakeImports());
-}
+public void importFiles() { importFiles(getLakeImports()); }
 
 @Override
 public void importFiles(Path sourceDirectory) {
@@ -104,12 +102,12 @@ public void importFiles(Path sourceDirectory) {
 		
 		// Use the manager port to safely create the class
 		OntologyReadingService.OntologyManagingService oms = getOntologyManagingService();
-		oms.createOntologyClass(temporalClassName, null, null);
-		OntologyClass temporalClass = oms.getClassFromName(temporalClassName);
-		OntologyClass rootClass = oms.getClassFromName("File");
+		oms.createOntologyClass(temporalClassName, (List<Integer>) null, null);
+//		OntologyClass temporalClass = oms.getClassFromName(temporalClassName);
+		OntologyClass rootClass = oms.getClassFromIdentity(0);
 		
 		for (Path physicalFile : unindexedFiles) {
-			processSingleImportInternal(physicalFile, temporalClass, rootClass, oms);
+			processSingleImportInternal(physicalFile, /*temporalClass,*/ rootClass, oms);
 		}
 		
 		saveChanges();
@@ -125,17 +123,17 @@ private void processSingleImport(Path physicalFile) {
 	String temporalClassName = "imported_at_" + timestamp;
 	
 	OntologyReadingService.OntologyManagingService oms = getOntologyManagingService();
-	oms.createOntologyClass(temporalClassName, null, null);
+	oms.createOntologyClass(temporalClassName, (List<Integer>) null, null);
 	
 	processSingleImportInternal(
 		  physicalFile,
-		  oms.getClassFromName(temporalClassName),
-		  oms.getClassFromName("File"),
+//		  oms.getClassFromName(temporalClassName),
+		  oms.getClassFromIdentity(0),
 		  oms
 	);
 }
 
-private void processSingleImportInternal(Path physicalFile, OntologyClass temporalClass, OntologyClass rootClass, OntologyReadingService.OntologyManagingService oms) {
+private void processSingleImportInternal(Path physicalFile, /*OntologyClass temporalClass,*/ OntologyClass rootClass, OntologyReadingService.OntologyManagingService oms) {
 	int newId = ontologyHierarchy.fileInterfaces.size();
 	String diskName = FileInterface.getDiskNameFor(newId);
 	
@@ -157,7 +155,7 @@ private void processSingleImportInternal(Path physicalFile, OntologyClass tempor
 	ontologyHierarchy.fileInterfaces.add(fi);
 	
 	// Wire it into the DAG using the manager port
-	oms.addElement(temporalClass.name, fi);
+//	oms.addElement(temporalClass.name, fi);
 	oms.addElement(rootClass.name, fi);
 }
 

@@ -1,6 +1,6 @@
 package org.halim.sgui.vpanels;
 
-import org.halim.ApplicationController;
+import org.halim.ApplicationControllerDeprecated;
 import org.halim.dlake.OntologyClass;
 import org.halim.sgui.sglib.HierarchyView;
 import org.jetbrains.annotations.NotNull;
@@ -17,11 +17,11 @@ import java.util.Queue;
 
 public class HierarchyTreeView extends HierarchyView {
 
-private final ApplicationController mac;
+private final ApplicationControllerDeprecated mac;
 private final JTree tree;
 private DefaultTreeModel treeModel;
 
-public HierarchyTreeView(ApplicationController mac) {
+public HierarchyTreeView(ApplicationControllerDeprecated mac) {
 	this.mac = mac;
 	setLayout(new BorderLayout());
 	

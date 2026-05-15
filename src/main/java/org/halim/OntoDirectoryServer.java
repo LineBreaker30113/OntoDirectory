@@ -16,26 +16,41 @@ import java.util.Map;
 
 public class OntoDirectoryServer implements OntoDirectoryService {
 
-// Memory map to hold and instantly swap between instantiated Data Lakes
 private final Map<Path, DataLakeManager> activeLakes = new HashMap<>();
-
-// Output Port Listeners (Pub/Sub)
+private Path currentlyActiveLakePath = null;
 private final List<OntoDirectoryServiceListener> listeners = new ArrayList<>();
 
 @Override
 public void loadDataLake(String fullPath) {
 	Path lakePath = Paths.get(fullPath);
-	DataLakeManager lake = new DataLakeManager(lakePath, new OntologyStorageV0());
+	DataLakeManager lake = activeLakes.computeIfAbsent(lakePath, p -> new DataLakeManager(p, new OntologyStorageV0()));
+	currentlyActiveLakePath = lakePath;
+	
+	// Broadcast to the GUI that a new lake is loaded and active
 	listeners.forEach(listener -> listener.onDataLakeLoad(lake));
 }
 
-/** This meant to completely remove the data lake from the disk. */
+@Override
+public DataLakeService getActiveDataLake() {
+	if (currentlyActiveLakePath == null) return null;
+	return activeLakes.get(currentlyActiveLakePath);
+}
+
+@Override
+public void dispatchLakeChooseRequest(Path identity) {
+	if (activeLakes.containsKey(identity)) {
+		currentlyActiveLakePath = identity;
+		listeners.forEach(listener -> listener.onDataLakeLoad(activeLakes.get(identity)));
+	}
+}
+
 @Override
 public void deleteLake(DataLakeService dataLakeService) {
-	if (dataLakeService instanceof DataLakeManager) {
-		DataLakeManager manager = (DataLakeManager) dataLakeService;
+	if (dataLakeService instanceof DataLakeManager manager) {
 		activeLakes.remove(manager.managerPath);
-		// MVP Note: This only removes it from active RAM. Physical disk deletion is separate.
+		if (manager.managerPath.equals(currentlyActiveLakePath)) {
+			currentlyActiveLakePath = null;
+		}
 		
 		SwingUtilities.invokeLater(() -> {
 			for (OntoDirectoryServiceListener listener : listeners) {
@@ -60,7 +75,6 @@ public void setGUI_Setting(@NotNull String key, Object value) {
 	} else if (key.equals("NativeFileChooser") && value instanceof Boolean) {
 		SettingLogic.setSystemFileChooser((Boolean) value);
 	}
-	
 	listeners.forEach(OntoDirectoryServiceListener::onGUI_Change);
 }
 

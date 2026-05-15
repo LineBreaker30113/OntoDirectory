@@ -103,7 +103,7 @@ public static void main(String[] args) throws InterruptedException {
 	SettingLogic.onLoad();
 	FlatDarkLaf.setup();
 	JFrame appWindow = new JFrame("onto Directory");
-	ApplicationController appContr = new ApplicationController();
+	ApplicationControllerDeprecated appContr = new ApplicationControllerDeprecated();
 	while(appContr.view == null) { Thread.sleep(8); }
 	appContr.deployTo(appWindow);
 }

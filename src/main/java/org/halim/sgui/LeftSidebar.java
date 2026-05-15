@@ -1,6 +1,6 @@
 package org.halim.sgui;
 
-import org.halim.WorkspaceController;
+import org.halim.WorkspaceControllerDeprecated;
 import org.halim.sgui.sglib.Utilities;
 import org.jetbrains.annotations.NotNull;
 
@@ -206,19 +206,19 @@ private @NotNull JPanel buildWorkspaceSection() {
 	panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 	
 	JButton treeBtn = registerButton("Tree View", "tree-view.svg");
-	treeBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.treeVN));
+	treeBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceControllerDeprecated.treeVN));
 	
 	JButton filesBtn = registerButton("Files View", "files.svg");
-	filesBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.filesVN));
+	filesBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceControllerDeprecated.filesVN));
 	
 	JButton notesBtn = registerButton("Notes View", "note.svg");
-	notesBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.notesVN));
+	notesBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceControllerDeprecated.notesVN));
 	
 	JButton graphBtn = registerButton("Graph View", "graph.svg");
-	graphBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.graphVN));
+	graphBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceControllerDeprecated.graphVN));
 	
 	JButton vennBtn = registerButton("Venn View", "intersect-three.svg");
-	vennBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceController.vennVN));
+	vennBtn.addActionListener(e -> owner.ontoDirectoryService.getWSP().panelToggled(WorkspaceControllerDeprecated.vennVN));
 	
 	panel.add(treeBtn);
 	panel.add(Box.createVerticalStrut(8));

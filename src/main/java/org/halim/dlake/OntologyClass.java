@@ -34,6 +34,8 @@ public ArrayList<OntologyClass> parents = new ArrayList<>();
 /** The list of immediate sub-categories contained by this class. */
 public ArrayList<OntologyClass> children = new ArrayList<>();
 
+public int identityNumber = 0;
+
 /**
  * Resets the parent hierarchy, anchoring this class directly to the root.
  */
@@ -229,60 +231,7 @@ public OntologyClass removeParent(OntologyClass parent) {
 	return this;
 }
 
-/** * Serializes this class's state into a binary format.
- * <p>
- * <b>Precondition:</b> The caller must ensure that this class exists within the provided
- * {@link OntologyHierarchy}. The self identity is assumed to be its index resolved by the {@code owner}.
- * * @param owner The map resolving object instances to integer identities.
- * @return A tightly packed {@link ByteBuffer} containing the serialized class data.
- */
-public ByteBuffer serialize(@NotNull OntologyHierarchy owner) {
-	int size = 4 + name.length()*2;
-	size += 4 + parents.size() * 4;
-	size += 4 + children.size() * 4;
-	
-	ByteBuffer buffer = ByteBuffer.allocate(size + 4);
-	
-	buffer.putInt(owner.getIdentityFromClass(this));
-	buffer.putInt(name.length());
-	buffer.asCharBuffer().put(name.toCharArray());
-	buffer.putInt(parents.size());
-	for(OntologyClass p : parents) { buffer.putInt(owner.getIdentityFromClass(p)); }
-	buffer.putInt(children.size());
-	for(OntologyClass p : children) { buffer.putInt(owner.getIdentityFromClass(p)); }
-	return buffer;
-}
-
-/**
- * Hydrates this object's state from a binary payload.
- * <p>
- * <b>Usage Protocol:</b>
- * <ol>
- * <li>Read the total number of tags from the file header.</li>
- * <li>Allocate the required instances using {@link #getEmptyArray(int)}.</li>
- * <li>Invoke this method on each instance, passing its specific data slice.</li>
- * </ol>
- *
- * @param owner The map resolving integer identities back to {@code OntologyClass} instances.
- * @param data  The binary payload containing this class's serialized state.
- */
-public void unPack(OntologyHierarchy owner, @NotNull ByteBuffer data) {
-	char[] nameBytes = new char[data.getInt()];
-	data.asCharBuffer().get(nameBytes);
-	this.name = new String(nameBytes);
-	
-	int count = data.getInt();
-	parents.ensureCapacity(count);
-	for(int i = 0; i < count; i++) {
-		parents.add(owner.getClassFromIdentity(data.getInt()));
-	}
-	
-	count = data.getInt();
-	children.ensureCapacity(count);
-	for(int i = 0; i < count; i++) {
-		children.add(owner.getClassFromIdentity(data.getInt()));
-	}
-}
+/** * /
 
 /**
  * Generates a pre-allocated array of empty ontology classes.

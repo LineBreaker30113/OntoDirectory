@@ -14,6 +14,9 @@ void deleteLake(DataLakeService dataLakeService);
 ArrayList<Pair<String, Object>> getGUI_Settings();
 void setGUI_Setting(String key, Object value);
 
+public DataLakeService getActiveDataLake();
+public void dispatchLakeChooseRequest(Path identity);
+
 void addOntoDirectoryServiceListener(OntoDirectoryServiceListener ontoDirectoryServiceListener);
 
 interface OntoDirectoryServiceListener {
