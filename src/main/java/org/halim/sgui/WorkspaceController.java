@@ -1,75 +1,46 @@
 package org.halim.sgui;
 
+import org.halim.dlake.OntologyClass;
 import org.halim.hport.OntoDirectoryService;
-import org.halim.sgui.sglib.ContentView;
-import org.halim.sgui.sglib.HierarchyView;
-import org.jetbrains.annotations.NotNull;
+import org.halim.sgui.sglib.WorkspaceListener;
 
-import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class WorkspaceController {
 
-public static final String filesVN = "filesV", notesVN = "notesV",
-	  treeVN = "treeV", graphVN = "graphV", vennVN = "vennV";
-public static final String[] vnames = new String[]{filesVN, notesVN, treeVN, graphVN, vennVN};
-
 public final ApplicationController owner;
 
-private HierarchyView treeView, graphView, vennView;
-private ContentView filesView, notesView;
-
-// Use wildcard/generics or custom interfaces here instead of domain listeners
-private final List<HierarchyView> hierarchyViews = new ArrayList<>();
-private final List<ContentView> contentViews = new ArrayList<>();
+// Observers that need domain updates (the views managed by WorkspacePanel)
+private final List<WorkspaceListener> workspaceListeners = new ArrayList<>();
 
 public WorkspaceController(ApplicationController owner) {
 	this.owner = owner;
-	SwingUtilities.invokeLater(this::initViews);
 }
 
-void initViews() {
-	treeView = new HierarchyTreeView(owner); // Inject owner so it can access the servicePort
-	graphView = new HierarchyGraphView();    // Stubs
-	vennView = new HierarchyVennView();      // Stubs
-	
-	hierarchyViews.add(treeView);
-	hierarchyViews.add(graphView);
-	hierarchyViews.add(vennView);
-	
-	filesView = new FilesContentView();      // Stubs
-	notesView = new NotesContentView();      // Stubs
-	
-	contentViews.add(filesView);
-	contentViews.add(notesView);
-}
-
-public JPanel getView(@NotNull String name) {
-	return switch (name) {
-		case filesVN -> filesView;
-		case notesVN -> notesView;
-		case treeVN -> treeView;
-		case graphVN -> graphView;
-		case vennVN -> vennView;
-		default -> null;
-	};
-}
-
-public void registerWSViews() {
-	SwingUtilities.invokeLater(() -> {
-		for (String name : vnames) {
-			if (name.equals(treeVN) || name.equals(filesVN)) {
-				owner.view.workspacePanel.addPanel(name, getView(name));
-			}
-		}
-	});
+/** Registers a view to receive domain state updates */
+public void registerListener(WorkspaceListener listener) {
+	if (!workspaceListeners.contains(listener)) {
+		workspaceListeners.add(listener);
+	}
 }
 
 public void triggerLakeRefresh(OntoDirectoryService.DataLakeService lakeService) {
-	// Distribute the Reading/Managing services to the views without exposing the Domain model directly
-	for (HierarchyView view : hierarchyViews) {
-		view.refreshFromService(lakeService.getOntologyReadingService());
+	for (WorkspaceListener listener : workspaceListeners) {
+		listener.onSelectedLakeChange(lakeService);
+	}
+}
+
+public void broadcastTagSelection(int tagIdentity) {
+	OntoDirectoryService.DataLakeService activeLake = owner.servicePort.getActiveDataLake();
+	if (activeLake != null) {
+		// Retrieve the OntologyClass aggregate from the Domain via Port
+		OntologyClass targetClass = activeLake.getOntologyReadingService().getClassFromIdentity(tagIdentity);
+		
+		// Broadcast the full object to listeners handling the UI
+		for (WorkspaceListener listener : workspaceListeners) {
+			listener.onSelectedClassChange(targetClass);
+		}
 	}
 }
 }

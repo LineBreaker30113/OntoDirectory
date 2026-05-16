@@ -28,6 +28,19 @@ public class OntologyClass {
 /** The human-readable identifier for this class. */
 public String name;
 
+public String toString()
+{
+	StringBuilder stringBuilder = new StringBuilder();
+	stringBuilder.append("{[OntologyClass: " + name + "],");
+	stringBuilder.append("[Parents: ");
+	parents.forEach(p -> stringBuilder.append(p.name + " && "));
+	stringBuilder.append("\b\b\b\b]");
+	stringBuilder.append("[Children: ");
+	children.forEach(c -> stringBuilder.append(c.name + " && "));
+	stringBuilder.append("\b\b\b\b]}");
+	return  name;
+}
+
 /** The list of immediate super-categories containing this class. */
 public ArrayList<OntologyClass> parents = new ArrayList<>();
 // THINK: Later those may need to vary depending on the subclasses, thus consider making getter and setters.
@@ -111,13 +124,15 @@ public boolean isAncestry(OntologyClass candidate) {
  * Determines if the current class is a subclass (descendant) of the provided candidate.
  * Optimized with a visited set to handle cycles and avoid redundant checks in
  * diamond-shaped hierarchies.
+ * The "Set" and "Deque" is cached for the use of multiple {@link #isAncestry(OntologyClass, Set, Deque)}
+ * with different classes, otherwise make sure to clear the "visited" set.
  *
  * @param candidate The class to test against the ancestry chain.
  * @param visited   A set to keep track of already processed classes (pass a new HashSet for a single check).
  * @param stack     A deque to manage the DFS traversal (pass a new ArrayDeque for a single check).
  * @return {@code true} if this class descends from the candidate; {@code false} otherwise.
  */
-public boolean isAncestry(OntologyClass candidate, Set<OntologyClass> visited, Deque<OntologyClass> stack) {
+private boolean isAncestry(OntologyClass candidate, Set<OntologyClass> visited, Deque<OntologyClass> stack) {
 	if (this == candidate) return true;
 	
 	stack.clear();
@@ -141,6 +156,30 @@ public boolean isAncestry(OntologyClass candidate, Set<OntologyClass> visited, D
 	}
 	
 	return false;
+}
+
+/**
+ * Extracts the entire upward subgraph of this class into an O(1) lookup table.
+ * Used to hyper-optimize batch ancestry queries and cycle detection.
+ */
+public Set<OntologyClass> getAncestrySet() {
+	Set<OntologyClass> ancestors = new HashSet<>();
+	Deque<OntologyClass> stack = new ArrayDeque<>();
+	
+	stack.push(this);
+	
+	while (!stack.isEmpty()) {
+		OntologyClass current = stack.pop();
+		System.out.println("Ancestor of " + this.name + " is " + current.name);
+		if (ancestors.add(current)) { // If not already processed
+			for (OntologyClass p : current.parents) {
+				if (!ancestors.contains(p)) {
+					stack.push(p);
+				}
+			}
+		}
+	}
+	return ancestors;
 }
 
 /** * Determines if the current class is a superclass (ancestor) of the provided candidate.
@@ -178,33 +217,24 @@ public OntologyClass addParent(OntologyClass candidate) {
 	if (parents.contains(candidate)) { return this; }
 	if (candidate == this) throw new OntoDirectoryException.OntologyAddParentSelf("Class \"" + name + "\" was tried be it's parent!");
 	if (isAncestry(candidate)) { return this; }
-	if (candidate.isAncestry(this)) throw new OntoDirectoryException.
-		  OntologyAddParentCausesCycle("Class \"" + candidate.name + "\" was descendant of " + name + "!");
 	
-	boolean candidateAdded = false;
+	Set<OntologyClass> candidateAncestors = candidate.getAncestrySet();
+	System.out.println("Candidate " + candidate.name + "  Ancestors: " + candidateAncestors);
+	if (candidateAncestors.contains(this)) {
+		throw new OntoDirectoryException.OntologyAddParentCausesCycle("Class \"" + candidate.name + "\" was descendant of " + name + "!");
+	}
 	Iterator<OntologyClass> iterator = parents.iterator();
-	HashSet<OntologyClass> visitedHS = new HashSet<>();
-	ArrayDeque<OntologyClass> toVisit = new ArrayDeque<>();
 	while (iterator.hasNext()) {
 		OntologyClass currentParent = iterator.next();
-		if (candidate.isAncestry(currentParent,  visitedHS, toVisit)) {
-			// Safely sever the old tie while iterating
+		if (candidateAncestors.contains(currentParent)) {
+			System.out.println("Candidate " + candidate.name + "  Ancestors contain: " + currentParent);
 			currentParent.children.remove(this);
 			iterator.remove();
-			
-			// Link the candidate only once
-			if (!candidateAdded) {
-				candidate.children.add(this);
-				candidateAdded = true;
-			}
 		}
 	}
-	
-	// If it was a completely unrelated branch
-	if (!candidateAdded) {
-		parents.add(candidate);
-		candidate.children.add(this);
-	}
+	System.out.println("Candidate " + candidate.name + " was unrelated!");
+	this.parents.add(candidate);
+	candidate.children.add(this);
 	return this;
 }
 

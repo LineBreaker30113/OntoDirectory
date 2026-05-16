@@ -61,6 +61,7 @@ public void closeFileSave(Path file) throws IOException {
 public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarchyFast target) throws IOException {
 	ByteBuffer data = readFile(source, 102 << 16);
 	int elementCount = data.getInt();
+	target.ontologyClasses.clear();
 	
 	ArrayList<OntologyClass> classes = target.ontologyClasses;
 	OntologyClass.getEmptyArrayList(classes, elementCount);
@@ -94,7 +95,8 @@ public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hi
 		ArrayList<OntologyClass> classes = hierarchy.ontologyClasses;
 		dos.writeInt(classes.size());
 		for (OntologyClass oc : classes) {
-			if(oc == null) { dos.write(0); continue; } // tombstone
+			if(oc == null) { dos.writeInt(0); continue; } // tombstone
+			System.out.println(oc.identityNumber + " " + oc.name);
 			byte[] nameBytes = oc.name.getBytes(StandardCharsets.UTF_8);
 			// Payload size = name_len(4) + name + parent_cnt(4) + parents(N*4) + child_cnt(4) + children(N*4)
 			int payloadSize = 12 + nameBytes.length + (oc.parents.size() * 4) + (oc.children.size() * 4);
@@ -110,8 +112,9 @@ public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hi
 			for (OntologyClass c : oc.children) dos.writeInt(hierarchy.getIdentityFromClass(c));
 		}
 		dos.flush();
+	} finally {
+		closeFileSave(target); // CRITICAL FIX: Always release the lock
 	}
-	closeFileSave(target);
 }
 
 
@@ -171,8 +174,9 @@ public void saveOntologyElements(Path target, @NotNull ArrayList<FileInterface> 
 			}
 		}
 		dos.flush();
+	} finally {
+		closeFileSave(target); // CRITICAL FIX: Always release the lock
 	}
-	closeFileSave(target);
 }
 
 //public final String OH_STORAGE = "ontologyHierarchy.bin";

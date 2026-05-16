@@ -80,9 +80,13 @@ interface OntologyServiceListener {
 
 interface OntologyManagingService extends OntologyReadingService {
 	
+	int filterToClass(OntologyFilter filter, String newClassName);
+	void copyContentsTo(int sourceIdentity, int targetIdentity, boolean copyParents, boolean copyChildren, boolean copyFiles);
+	
 	@Deprecated
 	void createOntologyClass(String name, ArrayList<String> parents, ArrayList<String> children);
-	void createOntologyClass(String name, List<Integer> parentIds, List<Integer> childrenIds);
+	/** Return the identity of the newly created class. */
+	int createOntologyClass(String name, List<Integer> parentIds, List<Integer> childrenIds);
 	
 	@Deprecated
 	void removeOntologyClass(String name);

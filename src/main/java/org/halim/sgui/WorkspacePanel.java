@@ -1,10 +1,20 @@
 package org.halim.sgui;
 
+import org.halim.sgui.sglib.WorkSpaceViewPanel;
+import org.halim.sgui.visual.FilesView;
+import org.halim.sgui.visual.HierarchyTreeView;
+import org.halim.sgui.visual.WorkPanelWrapper;
+
 import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Collections;
 
 public class WorkspacePanel extends JPanel {
+
+// Relocated from Controller: View Identifiers for routing toggles
+public static final String filesVN = "filesV", notesVN = "notesV",
+	  treeVN = "treeV", graphVN = "graphV", vennVN = "vennV";
+public static final String[] vnames = new String[]{ filesVN, notesVN, treeVN, graphVN, vennVN };
 
 // Tracks the logical order of currently visible panels
 private final ArrayList<WorkPanelWrapper> allPanels = new ArrayList<>();
@@ -14,36 +24,53 @@ public final GUI_RootPanel owner;
 public WorkspacePanel(GUI_RootPanel owner) {
 	this.owner = owner;
 	setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-}
-
-/** Adds a panel if it isn't already open */
-public void addPanel(String title, JPanel view) {
-	for (WorkPanelWrapper wrapper : activePanels) {
-		if (wrapper.content == view) return;
-	}
 	
-	WorkPanelWrapper wrapper = new WorkPanelWrapper(title, view, this);
-	activePanels.add(wrapper);
-	allPanels.add(wrapper);
-	renderPanels();
+	// Safely initialize views on the Event Dispatch Thread
+	SwingUtilities.invokeLater(this::initViews);
 }
 
-/** Removes a panel */
+private void initViews() {
+	// 1. Instantiate the Views
+	HierarchyTreeView treeView = new HierarchyTreeView(owner.appController);
+	FilesView filesView = new FilesView();
+	WorkSpaceViewPanel.ComingSoonPanel notesView = new WorkSpaceViewPanel.ComingSoonPanel();
+	WorkSpaceViewPanel.ComingSoonPanel graphView = new WorkSpaceViewPanel.ComingSoonPanel();
+	WorkSpaceViewPanel.ComingSoonPanel vennView = new WorkSpaceViewPanel.ComingSoonPanel();
+	
+	// 2. Register them to the Controller's Event Bus
+	WorkspaceController wsc = owner.appController.wsModeller;
+	wsc.registerListener(treeView);
+	wsc.registerListener(filesView);
+	wsc.registerListener(notesView);
+	wsc.registerListener(graphView);
+	wsc.registerListener(vennView);
+	
+	// 3. Wrap and store them in the master layout list
+	allPanels.add(new WorkPanelWrapper(treeVN, treeView, this));
+	allPanels.add(new WorkPanelWrapper(filesVN, filesView, this));
+	allPanels.add(new WorkPanelWrapper(notesVN, notesView, this));
+	allPanels.add(new WorkPanelWrapper(graphVN, graphView, this));
+	allPanels.add(new WorkPanelWrapper(vennVN, vennView, this));
+	
+	// 4. Set default active views (Pinning Tree and Files)
+	panelToggled(treeVN);
+	panelToggled(filesVN);
+}
+
+/** Removes a panel from the active layout */
 public void closePanel(WorkPanelWrapper wrapper) {
 	activePanels.remove(wrapper);
 	renderPanels();
 }
 
-/** Removes a panel */
+/** Re-adds a panel to the active layout */
 public void reopenPanel(WorkPanelWrapper wrapper) {
 	activePanels.add(wrapper);
 	renderPanels();
 }
 
-// --- Replace this method inside WorkspacePanel.java ---
-
 public void panelToggled(String pname) {
-	// THE FIX: Use findFirst().orElse(null) to prevent crashes if clicked during startup
+	// Safe stream filtering to prevent crashes if clicked during startup
 	WorkPanelWrapper wrapper = allPanels.stream()
 		  .filter(w -> w.title.equals(pname))
 		  .findFirst()
@@ -51,7 +78,7 @@ public void panelToggled(String pname) {
 	
 	if (wrapper == null) return; // Panel not instantiated yet
 	
-	if(activePanels.contains(wrapper)) {
+	if (activePanels.contains(wrapper)) {
 		closePanel(wrapper);
 	} else {
 		reopenPanel(wrapper);
@@ -81,7 +108,7 @@ private void renderPanels() {
 	for (WorkPanelWrapper wrapper : activePanels) {
 		add(wrapper);
 	}
-	revalidate(); repaint();
+	revalidate();
+	repaint();
 }
-
 }

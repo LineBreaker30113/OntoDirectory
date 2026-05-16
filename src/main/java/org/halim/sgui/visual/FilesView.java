@@ -1,7 +1,9 @@
-package org.halim.sgui.vpanels;
+package org.halim.sgui.visual;
 
 import org.halim.dlake.FileInterface;
 import org.halim.dlake.OntologyClass;
+import org.halim.hport.OntoDirectoryService;
+import org.halim.hport.OntologyReadingService;
 import org.halim.sgui.sglib.ContentView;
 import org.halim.sgui.sglib.Utilities;
 
@@ -9,16 +11,17 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class FilesView extends ContentView {
 
 private final DefaultListModel<FileInterface> listModel;
 private final JList<FileInterface> fileList;
 
-// Pagination & State
-private List<FileInterface> rawDomainFiles = new ArrayList<>(); // Master cache
-private List<FileInterface> currentDomainFiles = new ArrayList<>(); // Filtered view
+// State management cache driven by Ports
+private OntoDirectoryService.DataLakeService activeLakeService = null;
+private List<FileInterface> rawDomainFiles = new ArrayList<>();
+private List<FileInterface> currentDomainFiles = new ArrayList<>();
+
 private int currentPage = 0;
 private final int ITEMS_PER_PAGE = 100;
 
@@ -29,7 +32,7 @@ public FilesView() {
 	setLayout(new BorderLayout());
 	setBackground(Utilities.WP_BG);
 	
-	// --- TOP: Search & Filter Bar ---
+	// --- TOP: Search Bar ---
 	JPanel topBar = new JPanel(new BorderLayout(10, 0));
 	topBar.setBackground(Utilities.LIST_HEADER_BG);
 	topBar.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
@@ -42,7 +45,6 @@ public FilesView() {
 		  BorderFactory.createLineBorder(Color.DARK_GRAY),
 		  BorderFactory.createEmptyBorder(4, 8, 4, 8)
 	));
-	// Allow ENTER key to trigger search natively
 	searchBar.addActionListener(e -> performSearch());
 	
 	JButton searchBtn = new JButton("Search Domain");
@@ -54,7 +56,7 @@ public FilesView() {
 	topBar.add(searchBar, BorderLayout.CENTER);
 	topBar.add(searchBtn, BorderLayout.EAST);
 	
-	// --- CENTER: The Multi-Select File List ---
+	// --- CENTER: List Rendering ---
 	listModel = new DefaultListModel<>();
 	fileList = new JList<>(listModel);
 	fileList.setBackground(Utilities.LIST_BG);
@@ -67,7 +69,6 @@ public FilesView() {
 		public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
 			JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 			if (value instanceof FileInterface fi) {
-				// Utilizing the new O(1) Fixed Memory String!
 				label.setText("  " + fi.actualName + "  [ID: " + fi.identity + "]");
 			}
 			if (isSelected) {
@@ -81,7 +82,6 @@ public FilesView() {
 		}
 	});
 	
-	// Attach Context Menu
 	fileList.addMouseListener(new java.awt.event.MouseAdapter() {
 		@Override public void mousePressed(java.awt.event.MouseEvent e) { showContextMenu(e); }
 		@Override public void mouseReleased(java.awt.event.MouseEvent e) { showContextMenu(e); }
@@ -90,7 +90,7 @@ public FilesView() {
 	JScrollPane scrollPane = new JScrollPane(fileList);
 	scrollPane.setBorder(null);
 	
-	// --- BOTTOM: Pagination Controls ---
+	// --- BOTTOM: Pagination ---
 	JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.CENTER));
 	bottomBar.setBackground(Utilities.LIST_HEADER_BG);
 	
@@ -129,36 +129,48 @@ private void showContextMenu(java.awt.event.MouseEvent e) {
 		if (selectedFiles.isEmpty()) return;
 		
 		JPopupMenu contextMenu = new JPopupMenu();
-		
 		JMenuItem exportCopy = new JMenuItem("Export (Copy)");
-		JMenuItem exportCrop = new JMenuItem("Export (Move/Crop)");
 		JMenuItem rename = new JMenuItem("Rename Actual Name");
-		JMenuItem addTag = new JMenuItem("Add Tag to Selection...");
-		JMenuItem removeTag = new JMenuItem("Remove Tag from Selection...");
 		
 		exportCopy.addActionListener(a -> System.out.println("Copying " + selectedFiles.size() + " files."));
-		exportCrop.addActionListener(a -> System.out.println("Moving " + selectedFiles.size() + " files."));
 		rename.addActionListener(a -> System.out.println("Renaming file ID: " + selectedFiles.get(0).identity));
 		
 		contextMenu.add(exportCopy);
-		contextMenu.add(exportCrop);
-		contextMenu.addSeparator();
 		contextMenu.add(rename);
-		contextMenu.addSeparator();
-		contextMenu.add(addTag);
-		contextMenu.add(removeTag);
-		
 		contextMenu.show(fileList, e.getX(), e.getY());
 	}
 }
 
+// --- WORKSPACE LISTENER IMPLEMENTATION MIGRATION ---
+
 @Override
-public void onTagChange(OntologyClass ntag, OntologyHierarchyReader reader) {
-	Set<FileInterface> rawFiles = reader.getAllFilesForClass(ntag);
+public void onSelectedLakeChange(OntoDirectoryService.DataLakeService dataLakeService) {
+	this.activeLakeService = dataLakeService;
+	// Wipe views clean when transitioning underlying binary contexts
+	rawDomainFiles.clear();
+	currentDomainFiles.clear();
+	listModel.clear();
+	pageLabel.setText("Page 1 of 1");
+}
+
+@Override
+public void onSelectedClassChange(OntologyClass ontologyClass) {
+	if (ontologyClass == null || activeLakeService == null) return;
+	
+	OntologyReadingService reader = activeLakeService.getOntologyReadingService();
+	if (reader == null) return;
+	
+	// Pass class attributes linearly down to proxy method safely
+	List<FileInterface> rawFiles = reader.getAllOntologyElements(ontologyClass.identityNumber);
 	rawDomainFiles = new ArrayList<>(rawFiles);
 	currentDomainFiles = new ArrayList<>(rawDomainFiles);
 	currentPage = 0;
 	updateListModel();
+}
+
+@Override
+public void onDomainChange(OntologyClass ontologyClass) {
+	onSelectedClassChange(ontologyClass);
 }
 
 private void switchPage(int direction) {
@@ -175,7 +187,6 @@ private void performSearch() {
 	if (query.isEmpty()) {
 		currentDomainFiles = new ArrayList<>(rawDomainFiles);
 	} else {
-		// High-speed RAM filtering algorithm
 		currentDomainFiles = rawDomainFiles.stream()
 			  .filter(f -> f.actualName != null && f.actualName.toLowerCase().contains(query))
 			  .toList();

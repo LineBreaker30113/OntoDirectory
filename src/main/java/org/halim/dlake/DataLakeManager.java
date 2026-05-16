@@ -46,9 +46,9 @@ public DataLakeManager(@NotNull Path managerPath, @NotNull OntologyStorageServic
 	this.managerPath = managerPath;
 	this.storageService = storageService;
 	
-	if(!Files.exists(getLakeConfig())) createLake();
-	else try {
-		// 1. Storage service handles the heavy lifting
+	if(!Files.exists(getLakeConfig())) { createLake();
+	} else try {
+		ontologyHierarchy = new OntologyHierarchyFast();
 		storageService.loadOntologyHierarchyFromFile(getLakeHierarchy(), ontologyHierarchy);
 		ontologyHierarchy.fileInterfaces = storageService.loadOntologyElementsFromFile(getLakeElements());
 		ontologyHierarchy.onLoad();
@@ -67,6 +67,7 @@ private void createLake() {
 	} catch (IOException e) {
 		throw new OntoDirectoryException("Failed to build directory structure: " + e.getMessage());
 	}
+	System.out.println("Created Data Lake directory: " + getLakePath());
 	ontologyHierarchy = new OntologyHierarchyFast();
 	saveChanges();
 }

@@ -1,7 +1,7 @@
 package org.halim.sgui;
 
-import org.halim.ManualParser;
-import org.halim.ManualParser.ManualEntry;
+import org.halim.sgui.sglib.ManualParser;
+import org.halim.sgui.sglib.ManualParser.ManualEntry;
 import org.halim.sgui.sglib.AccordionPanel;
 import org.halim.sgui.sglib.Utilities;
 

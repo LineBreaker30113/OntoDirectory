@@ -254,15 +254,40 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		memento.primaryTarget = name;
 		recordAction(memento);
 	}
+	@Override
+	public int filterToClass(OntologyFilter filter, String newClassName) {
+		int newClassId = createOntologyClass(newClassName, (List<Integer>) null, null);
+		
+		OntologyClass newClass = null;
+		
+		// Locate the newly appended identity
+		for (int i = ontologyClasses.size() - 1; i >= 0; i--) {
+			if (ontologyClasses.get(i) != null && ontologyClasses.get(i).name.equals(newClassName)) {
+				newClass = ontologyClasses.get(i);
+				newClassId = i;
+				break;
+			}
+		}
+		
+		if (newClass == null) return -1;
+		
+		List<FileInterface> matchedFiles = getOntologyElements(filter);
+		for (FileInterface file : matchedFiles) {
+			addElement(newClassId, file);
+		}
+		
+		return newClassId;
+	}
 	
 	@Override
-	public void createOntologyClass(String name, List<Integer> parentIds, List<Integer> childrenIds) {
+	public int createOntologyClass(String name, List<Integer> parentIds, List<Integer> childrenIds) {
 		if (getClassFromName(name) != null) throw new OntoDirectoryException("Class '" + name + "' already exists.");
 		
 		OntologyClass noc = new OntologyClass(name, getRootOntologyClass());
 		if (parentIds != null) {
 			for (Integer pId : parentIds) {
 				OntologyClass parent = getClassFromIdentity(pId);
+				System.out.println("Parent of " + name + " id" + pId);
 				if (parent != null) noc.addParent(parent);
 				else throw new OntoDirectoryException("One element in the parents array of '" + name + "' was null");
 			}
@@ -274,21 +299,25 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 				else throw new OntoDirectoryException("One element in the children array of '" + name + "' was null");
 			}
 		}
-		
+		System.out.println("Created ontology class '" + name + "'" + " pc:" + noc.parents.size());
+		noc.parents.forEach(p -> System.out.println("Parent of " + name + " id" + p.identityNumber));
 		insertNewClass(noc);
 		
 		OntologyMemento memento = new OntologyMemento();
 		memento.actionType = OntologyMemento.ActionType.Create;
 		memento.primaryTarget = name; // Resolved for Memento compatibility
 		recordAction(memento);
+		return noc.identityNumber;
 	}
 	
 	private void insertNewClass(OntologyClass noc) {
 		int insertIndex = ontologyClasses.indexOf(null);
 		if (insertIndex == -1) {
+			noc.identityNumber = ontologyClasses.size();
 			ontologyClasses.add(noc);
 			filesPerOntology.add(new ArrayList<>());
 		} else {
+			noc.identityNumber = insertIndex;
 			ontologyClasses.set(insertIndex, noc);
 			filesPerOntology.set(insertIndex, new ArrayList<>());
 		}
@@ -340,6 +369,35 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		OntologyClass child = getClassFromName(className);
 		OntologyClass parent = getClassFromName(parentName);
 		executeAddParent(child, parent);
+	}
+	
+	@Override
+	public void copyContentsTo(int sourceIdentity, int targetIdentity, boolean copyParents, boolean copyChildren, boolean copyFiles) {
+		OntologyClass source = getClassFromIdentity(sourceIdentity);
+		OntologyClass target = getClassFromIdentity(targetIdentity);
+		
+		if (source == null || target == null || source == target) return;
+		
+		if (copyParents) {
+			for (OntologyClass parent : new ArrayList<>(source.parents)) {
+				if (parent != getRootOntologyClass()) {
+					addParent(targetIdentity, getIdentityFromClass(parent));
+				}
+			}
+		}
+		
+		if (copyChildren) {
+			for (OntologyClass child : new ArrayList<>(source.children)) {
+				addParent(getIdentityFromClass(child), targetIdentity);
+			}
+		}
+		
+		if (copyFiles) {
+			List<FileInterface> sourceFiles = new ArrayList<>(filesPerOntology.get(sourceIdentity));
+			for (FileInterface file : sourceFiles) {
+				addElement(targetIdentity, file);
+			}
+		}
 	}
 	
 	@Override

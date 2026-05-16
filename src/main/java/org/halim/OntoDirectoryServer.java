@@ -26,6 +26,8 @@ public void loadDataLake(String fullPath) {
 	DataLakeManager lake = activeLakes.computeIfAbsent(lakePath, p -> new DataLakeManager(p, new OntologyStorageV0()));
 	currentlyActiveLakePath = lakePath;
 	
+	SettingLogic.addDataLake(lakePath);
+	
 	// Broadcast to the GUI that a new lake is loaded and active
 	listeners.forEach(listener -> listener.onDataLakeLoad(lake));
 }

@@ -1,6 +1,9 @@
 package org.halim;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import org.halim.cli.CliController;
+import org.halim.sgui.ApplicationController;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 
@@ -97,14 +100,49 @@ public class Main {
 //
 //}
 
-public static void main(String[] args) throws InterruptedException {
-	// Unleash the GUI
-//	javax.swing.SwingUtilities.invokeLater(Main::onLoad);
-	SettingLogic.onLoad();
-	FlatDarkLaf.setup();
-	JFrame appWindow = new JFrame("onto Directory");
-	ApplicationControllerDeprecated appContr = new ApplicationControllerDeprecated();
-	while(appContr.view == null) { Thread.sleep(8); }
-	appContr.deployTo(appWindow);
+//public static void main(String[] args) throws InterruptedException {
+//	// Unleash the GUI
+////	javax.swing.SwingUtilities.invokeLater(Main::onLoad);
+//	SettingLogic.onLoad();
+//	FlatDarkLaf.setup();
+//	JFrame appWindow = new JFrame("onto Directory");
+//	ApplicationControllerDeprecated appContr = new ApplicationControllerDeprecated();
+//	while(appContr.view == null) { Thread.sleep(8); }
+//	appContr.deployTo(appWindow);
+//}
+public static OntoDirectoryServer servicePort;
+
+// Adapters (Only one will ever be instantiated per runtime)
+public static ApplicationController guiAdapter;
+public static CliController cliAdapter;
+
+private static void onGuiLoad() {
+	JFrame frame = new JFrame("Onto Directory");
+	frame.setSize(1200, 800);
+	guiAdapter.deployTo(frame);
 }
+
+public static void main(String @NotNull [] args) {
+	SettingLogic.onLoad();
+	servicePort = new OntoDirectoryServer();
+	
+	if (args.length == 0) {
+		// MODE 1: GUI (Default)
+		FlatDarkLaf.setup();
+		guiAdapter = new ApplicationController(servicePort);
+		SwingUtilities.invokeLater(Main::onGuiLoad);
+		
+	} else if (args.length == 1 && (args[0].equals("-i") || args[0].equals("--interactive"))) {
+		// MODE 2: Interactive REPL Shell
+		cliAdapter = new CliController(servicePort);
+		cliAdapter.startInteractiveShell();
+		
+	} else {
+		// MODE 3: One-Shot Script Execution
+		cliAdapter = new CliController(servicePort);
+		cliAdapter.executeOneShot(args);
+	}
+}
+
+
 }

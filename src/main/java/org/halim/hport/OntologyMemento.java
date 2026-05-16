@@ -32,7 +32,7 @@ public void undo(OntologyReadingService.OntologyManagingService oms) {
 		case Remove:
 			// Recreate requires knowing previous parents/children.
 			// We pass empty arrays for MVP to satisfy the signature.
-			oms.createOntologyClass(primaryTarget, new ArrayList<>(), new ArrayList<>());
+			oms.createOntologyClass(primaryTarget, new ArrayList<Integer>(), new ArrayList<>());
 			actionType = ActionType.Create;
 			break;
 		case AddParent:

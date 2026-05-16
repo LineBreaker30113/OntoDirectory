@@ -1,5 +1,6 @@
-package org.halim.sgui;
+package org.halim.sgui.visual;
 
+import org.halim.sgui.WorkspacePanel;
 import org.halim.sgui.sglib.Utilities;
 
 import javax.swing.*;

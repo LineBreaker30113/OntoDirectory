@@ -1,4 +1,4 @@
-package org.halim;
+package org.halim.sgui.sglib;
 
 import java.io.BufferedReader;
 import java.io.InputStream;

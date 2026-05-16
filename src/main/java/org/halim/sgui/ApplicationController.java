@@ -20,8 +20,7 @@ public ApplicationController(OntoDirectoryService servicePort) {
 	
 	// Initialize the UI on the Event Dispatch Thread
 	SwingUtilities.invokeLater(() -> {
-		this.view = new GUI_RootPanel(servicePort);
-		// Register this controller as a listener to backend changes
+		this.view = new GUI_RootPanel(this);
 		this.servicePort.addOntoDirectoryServiceListener(new ServiceListenerImpl());
 	});
 }
@@ -32,7 +31,7 @@ public void deployTo(@NotNull JFrame applicationWindow) {
 	applicationWindow.pack();
 	applicationWindow.setLocationRelativeTo(null);
 	applicationWindow.setVisible(true);
-	wsModeller.registerWSViews(); // Pin initial views
+//	wsModeller.registerWSViews(); // Pin initial views
 }
 
 // Inner class to handle callbacks from the Server
@@ -40,6 +39,11 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 	@Override
 	public void onGUI_Change() {
 		SwingUtilities.invokeLater(() -> {
+			if (view.centerPanel.welcomePage != null) {
+				view.centerPanel.welcomePage.refreshLakes(); // CRITICAL: Sync the UI
+			}
+			view.leftSidebar.revalidate();
+			
 			view.revalidate();
 			view.repaint();
 		});
