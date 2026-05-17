@@ -3,6 +3,7 @@ package org.halim.sgui;
 import org.halim.hport.OntoDirectoryService;
 import org.jetbrains.annotations.NotNull;
 import javax.swing.*;
+import java.nio.file.Path;
 
 /**
  * Handles the deployment and primary orchestration of the Swing UI Adapter.
@@ -56,6 +57,11 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 			view.centerPanel.showPage("WORKSPACE");
 			wsModeller.triggerLakeRefresh(dataLakeService);
 		});
+	}
+	
+	@Override
+	public void showBugReport(Path reportFile) {
+	
 	}
 }
 }

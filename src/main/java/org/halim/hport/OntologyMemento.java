@@ -1,63 +1,59 @@
 package org.halim.hport;
 
 import org.halim.dlake.FileInterface;
+import org.halim.dlake.OntologyClass;
+
 import java.util.ArrayList;
 
 public class OntologyMemento {
-
-public static class OntologyClassState {
-	public String name;
-	public int[] parents, children;
-}
 
 public enum ActionType {
 	Create, Remove, AddParent, RemoveParent, AddElement, RemoveElement, Rename
 }
 
 public ActionType actionType;
-//public OntologyClassState[] beforeAction, afterAction;
-
-// Supplementary data required to perform exact inverse operations
-public String primaryTarget;
-public String secondaryTarget;
+public int primaryTargetId;
+public int secondaryTargetId;
+public String stringPayload; // Holds Old Name or New Name for renames
 public FileInterface targetFile;
+public OntologyClass classSnapshot; // For resurrecting exact instances
+public ArrayList<FileInterface> fileListSnapshot;
 
-/** Undoes the action, then inverses itself for ability to use as "redo". */
-public void undo(OntologyReadingService.OntologyManagingService oms) {
+// Assuming your manager implements both Managing and Reading services
+public void undo(OntologyReadingService.OntologyManagingService oms, OntologyReadingService ors) {
 	switch (actionType) {
 		case Create:
-			oms.removeOntologyClass(primaryTarget);
+			classSnapshot = ors.getClassFromIdentity(primaryTargetId);
+			fileListSnapshot = new ArrayList<>(ors.getOntologyElements(primaryTargetId)); // Capture the list!
+			oms.removeOntologyClass(primaryTargetId);
 			actionType = ActionType.Remove;
 			break;
 		case Remove:
-			// Recreate requires knowing previous parents/children.
-			// We pass empty arrays for MVP to satisfy the signature.
-			oms.createOntologyClass(primaryTarget, new ArrayList<Integer>(), new ArrayList<>());
+			// It was Removed. Undo = Restore exact memory footprint.
+			oms.restoreOntologyClass(primaryTargetId, classSnapshot,  fileListSnapshot);
 			actionType = ActionType.Create;
 			break;
 		case AddParent:
-			oms.removeParent(primaryTarget, secondaryTarget);
+			oms.removeParent(primaryTargetId, secondaryTargetId);
 			actionType = ActionType.RemoveParent;
 			break;
 		case RemoveParent:
-			oms.addParent(primaryTarget, secondaryTarget);
+			oms.addParent(primaryTargetId, secondaryTargetId);
 			actionType = ActionType.AddParent;
 			break;
 		case AddElement:
-			oms.removeElement(primaryTarget, targetFile);
+			oms.removeElement(primaryTargetId, targetFile);
 			actionType = ActionType.RemoveElement;
 			break;
 		case RemoveElement:
-			oms.addElement(primaryTarget, targetFile);
+			oms.addElement(primaryTargetId, targetFile);
 			actionType = ActionType.AddElement;
 			break;
 		case Rename:
-			oms.renameOntologyClass(secondaryTarget, primaryTarget);
-			// Swap primary and secondary to reverse the rename direction
-			String temp = primaryTarget;
-			primaryTarget = secondaryTarget;
-			secondaryTarget = temp;
-			// actionType remains Rename
+			// We need to fetch the CURRENT name to save it for Redo, then apply the OLD name
+			String currentName = ors.getClassFromIdentity(primaryTargetId).name;
+			oms.renameOntologyClass(primaryTargetId, stringPayload);
+			stringPayload = currentName; // Swap payload to reverse the direction
 			break;
 	}
 }

@@ -1,6 +1,6 @@
 package org.halim;
 
-import javafx.util.Pair;
+import org.halim.Utilities.Pair;
 import org.halim.dlake.DataLakeManager;
 import org.halim.dlake.OntologyStorageV0;
 import org.halim.hport.OntoDirectoryService;
@@ -19,6 +19,24 @@ public class OntoDirectoryServer implements OntoDirectoryService {
 private final Map<Path, DataLakeManager> activeLakes = new HashMap<>();
 private Path currentlyActiveLakePath = null;
 private final List<OntoDirectoryServiceListener> listeners = new ArrayList<>();
+
+@Override
+public void reportFatalError(Throwable ex) {
+	DataLakeService activeLake = getActiveDataLake();
+	Path dumpFile;
+	
+	if (activeLake != null) {
+		dumpFile = activeLake.generateDiagnosticDump(ex);
+	} else {
+		dumpFile = org.halim.dlake.CrashReporter.generateGlobalDump(ex, org.halim.SettingLogic.ACTIVE_CONFIG_DIR);
+	}
+	
+	if (dumpFile != null) {
+		for (OntoDirectoryServiceListener listener : listeners) {
+			listener.showBugReport(dumpFile);
+		}
+	}
+}
 
 @Override
 public void loadDataLake(String fullPath) {

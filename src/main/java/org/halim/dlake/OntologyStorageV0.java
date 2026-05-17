@@ -9,6 +9,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 
@@ -56,8 +57,6 @@ public void closeFileSave(Path file) throws IOException {
 	}
 }
 
-
-
 public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarchyFast target) throws IOException {
 	ByteBuffer data = readFile(source, 102 << 16);
 	int elementCount = data.getInt();
@@ -91,12 +90,18 @@ public void loadOntologyHierarchyFromFile(Path source, @NotNull OntologyHierarch
 }
 
 public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hierarchy) throws IOException {
-	try (DataOutputStream dos = requestFileSave(target)) {
+	Path tempTarget = target.resolveSibling(target.getFileName().toString() + ".tmp");
+	
+	try (DataOutputStream dos = requestFileSave(tempTarget)) {
 		ArrayList<OntologyClass> classes = hierarchy.ontologyClasses;
 		dos.writeInt(classes.size());
+		
 		for (OntologyClass oc : classes) {
-			if(oc == null) { dos.writeInt(0); continue; } // tombstone
-			System.out.println(oc.identityNumber + " " + oc.name);
+			if (oc == null) {
+				dos.writeInt(0);
+				continue;
+			} // tombstone
+			
 			byte[] nameBytes = oc.name.getBytes(StandardCharsets.UTF_8);
 			// Payload size = name_len(4) + name + parent_cnt(4) + parents(N*4) + child_cnt(4) + children(N*4)
 			int payloadSize = 12 + nameBytes.length + (oc.parents.size() * 4) + (oc.children.size() * 4);
@@ -113,10 +118,12 @@ public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hi
 		}
 		dos.flush();
 	} finally {
-		closeFileSave(target); // CRITICAL FIX: Always release the lock
+		closeFileSave(tempTarget); // Guarantee release of the lock byte
 	}
+	
+	// Atomic swap prevents partial writes or corrupted state during a crash
+	Files.move(tempTarget, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 }
-
 
 public ArrayList<FileInterface> loadOntologyElementsFromFile(Path source) throws IOException {
 	ByteBuffer data = readFile(source, 180 << 19);
@@ -149,50 +156,52 @@ public ArrayList<FileInterface> loadOntologyElementsFromFile(Path source) throws
 	return files;
 }
 
-public void saveOntologyElements(Path target, @NotNull ArrayList<FileInterface> files) throws IOException {
-	try (DataOutputStream dos = requestFileSave(target)) {
+public void saveOntologyElements(@NotNull Path target, @NotNull ArrayList<FileInterface> files) throws IOException {
+	Path tempTarget = target.resolveSibling(target.getFileName().toString() + ".tmp");
+	
+	try (DataOutputStream dos = requestFileSave(tempTarget)) {
 		dos.writeInt(files.size());
-		final byte[] padding = new byte[128]; // Reusable zero-filled array
-		
+		final byte[] padding = new byte[128];
+		int index = 0;
+		byte nullHeader[] = new byte[8];
 		for (FileInterface fi : files) {
-			if(fi == null) { dos.writeInt(padding.length); continue; } // tombstone
+			if (fi == null) {
+				dos.write(nullHeader);
+				index++; // Keep alignment with the tombstone
+				continue;
+			}
+			
 			// Disk Name (8 bytes ASCII)
-			byte[] dBytes = (fi.diskName == null) ? new byte[0] : fi.diskName.getBytes(StandardCharsets.US_ASCII);
+			if (fi.diskName == null) throw new OntoDirectoryException.
+				  OntologyHierarchyHasUnintendedStateException("Disk name for file (i:" + index + ") ID " + fi.identity + " was null!");
+			byte[] dBytes = fi.diskName.getBytes(StandardCharsets.US_ASCII);
 			dos.write(dBytes, 0, Math.min(8, dBytes.length));
 			if (dBytes.length < 8) dos.write(padding, 0, 8 - dBytes.length);
 			
 			// Actual Name (128 bytes UTF-8)
-			byte[] nBytes = (fi.actualName == null) ? new byte[0] : fi.actualName.getBytes(StandardCharsets.UTF_8);
+			if (fi.actualName == null) throw new OntoDirectoryException.
+				  OntologyHierarchyHasUnintendedStateException("Actual name for file (i:" + index + ") ID " + fi.identity + " was null!");
+			byte[] nBytes = fi.actualName.getBytes(StandardCharsets.UTF_8);
 			dos.write(nBytes, 0, Math.min(128, nBytes.length));
 			if (nBytes.length < 128) dos.write(padding, 0, 128 - nBytes.length);
 			
 			// Variable Tags
-			int tagCount = (fi.tagsByIdentity == null) ? 0 : fi.tagsByIdentity.size();
+			if (fi.tagsByIdentity == null) throw new OntoDirectoryException.
+				  OntologyHierarchyHasUnintendedStateException("Tags array for file (i:" + index + ") ID " + fi.identity + " was null!");
+			int tagCount = fi.tagsByIdentity.size();
 			dos.writeInt(tagCount);
 			for (int j = 0; j < tagCount; j++) {
 				dos.writeInt(fi.tagsByIdentity.get(j));
 			}
+			index++;
 		}
 		dos.flush();
 	} finally {
-		closeFileSave(target); // CRITICAL FIX: Always release the lock
+		closeFileSave(tempTarget);
 	}
+	
+	Files.move(tempTarget, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 }
 
-//public final String OH_STORAGE = "ontologyHierarchy.bin";
-//public final String OE_STORAGE = "ontologyElements.bin";
-//
-//@Override
-//public void loadOntology(@NotNull Path rootPath, @NotNull OntologyHierarchyFast targetHierarchy) throws IOException {
-//	loadOntologyHierarchyFromFile(rootPath.resolve(OH_STORAGE),  targetHierarchy);
-//	targetHierarchy.fileInterfaces = loadOntologyElementsFromFile(rootPath.resolve(OE_STORAGE));
-//}
-//
-//@Override
-//public void saveOntology(Path targetRoot, @NotNull OntologyHierarchyFast sourceHierarchy) throws IOException {
-//	loadOntologyHierarchyFromFile(targetRoot.resolve(OH_STORAGE),  sourceHierarchy);
-//	sourceHierarchy.fileInterfaces = loadOntologyElementsFromFile(targetRoot.resolve(OE_STORAGE));
-//
-//}
 
 }

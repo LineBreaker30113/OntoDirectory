@@ -123,12 +123,35 @@ private static void onGuiLoad() {
 }
 
 public static void main(String @NotNull [] args) {
+	// 1. ARM THE TRIPWIRE FIRST
+	Thread.setDefaultUncaughtExceptionHandler((thread, exception) -> {
+		System.err.println("Uncaught Exception intercepted on thread: " + thread.getName());
+		if (servicePort != null) {
+			servicePort.reportFatalError(exception);
+		} else {
+			// PRE-BOOT FAILURE: servicePort isn't alive yet. Force a global dump manually.
+			System.err.println("Pre-boot failure detected. Routing to global fallback.");
+			java.nio.file.Path fallback = java.nio.file.Paths.get(System.getProperty("user.home"), ".config", "onto-directory");
+			org.halim.dlake.CrashReporter.generateGlobalDump(exception, fallback);
+		}
+		
+		if (guiAdapter != null) {
+			SwingUtilities.invokeLater(() -> {
+				javax.swing.JOptionPane.showMessageDialog(null,
+					  "A fatal error occurred. A diagnostic dump has been generated.\n\nError: " + exception.getMessage(),
+					  "System Crash",
+					  javax.swing.JOptionPane.ERROR_MESSAGE);
+			});
+		}
+	});
+	
+	// 2. NOW PROCEED WITH BOOT SEQUENCE
 	SettingLogic.onLoad();
 	servicePort = new OntoDirectoryServer();
 	
 	if (args.length == 0) {
 		// MODE 1: GUI (Default)
-		FlatDarkLaf.setup();
+		com.formdev.flatlaf.FlatDarkLaf.setup();
 		guiAdapter = new ApplicationController(servicePort);
 		SwingUtilities.invokeLater(Main::onGuiLoad);
 		

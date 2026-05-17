@@ -27,8 +27,10 @@ public OntologyHierarchyFast() {
 	filesPerOntology.add(new ArrayList<>());
 }
 
+private void ifNotNull(OntologyClass instance, Consumer<OntologyClass> action) {
+	if(instance != null) action.accept(instance);
+}
 
-private void ifNotNull(OntologyClass instance, Consumer<OntologyClass> action) { if(instance != null) action.accept(instance); }
 /** All the actions to take after loading the data lake. For now just creating the fast arrays. */
 public void onLoad() {
 	Iterator<OntologyClass> iterator = ontologyClasses.iterator(); int ocin = 0;
@@ -36,7 +38,11 @@ public void onLoad() {
 		final int ci = ocin++; ifNotNull(iterator.next(), oc -> oc.identityNumber = ci);
 		filesPerOntology.add(new ArrayList<>());
 	}
-	fileInterfaces.forEach(fi -> { fi.tagsByIdentity.forEach(fii -> filesPerOntology.get(fii).add(fi)); });
+	fileInterfaces.forEach(fi -> {
+		if (fi != null && fi.tagsByIdentity != null) {
+			fi.tagsByIdentity.forEach(fii -> filesPerOntology.get(fii).add(fi));
+		}
+	});
 }
 
 /**
@@ -45,51 +51,84 @@ public void onLoad() {
  * WARNING: This alters persistent Integer IDs. Do not run implicitly on standard saves.
  */
 public void vacuumDatabase(Path dataLakePath) {
+	// 1. Clean File Interfaces & Rename
 	fileInterfaces.removeIf(Objects::isNull);
-	
 	for (int i = 0; i < fileInterfaces.size(); i++) {
 		FileInterface fi = fileInterfaces.get(i);
 		fi.renameDisk(FileInterface.getDiskNameFor(i), dataLakePath);
 		fi.identity = i;
 	}
 	
-	ArrayList<Integer> toRemove = new ArrayList<>();
+	// 2. Build Translation Map & Compact Arrays
+	int[] oldToNewMap = new int[ontologyClasses.size()];
+	int newIndex = 0;
+	int reclaimed = 0;
 	
-	for (int i = 0; i < ontologyClasses.size(); i++) {
-		if (ontologyClasses.get(i) == null) {
-			toRemove.add(i);
+	for (int oldIndex = 0; oldIndex < ontologyClasses.size(); oldIndex++) {
+		OntologyClass oc = ontologyClasses.get(oldIndex);
+		if (oc != null) {
+			oldToNewMap[oldIndex] = newIndex;
+			oc.identityNumber = newIndex; // CRITICAL: Fix internal ID
+			ontologyClasses.set(newIndex, oc);
+			filesPerOntology.set(newIndex, filesPerOntology.get(oldIndex));
+			newIndex++;
+		} else {
+			oldToNewMap[oldIndex] = -1; // Mark as dead
+			reclaimed++;
 		}
 	}
 	
-	if (toRemove.isEmpty()) return;
+	if (reclaimed == 0) return;
 	
+	// Truncate the dead ends of the arrays
+	ontologyClasses.subList(newIndex, ontologyClasses.size()).clear();
+	filesPerOntology.subList(newIndex, filesPerOntology.size()).clear();
+	
+	// 3. Migrate Foreign Keys in FileInterfaces
 	for (FileInterface fi : fileInterfaces) {
 		if (fi.tagsByIdentity == null) continue;
-		
-		for (int ti = fi.tagsByIdentity.size() - 1; ti >= 0; ti--) {
-			int oldTagId = fi.tagsByIdentity.get(ti);
+		for (int i = fi.tagsByIdentity.size() - 1; i >= 0; i--) {
+			int oldTagId = fi.tagsByIdentity.get(i);
+			int mappedNewId = oldToNewMap[oldTagId];
 			
-			if (toRemove.contains(oldTagId)) {
-				fi.tagsByIdentity.remove(ti);
-				continue;
+			if (mappedNewId == -1) {
+				fi.tagsByIdentity.remove(i); // Parent was tombstoned
+			} else {
+				fi.tagsByIdentity.set(i, mappedNewId); // Update foreign key
 			}
-			
-			int shiftAmount = 0;
-			for (int deadIndex : toRemove) {
-				if (deadIndex < oldTagId) shiftAmount++;
-				else break;
-			}
-			fi.tagsByIdentity.set(ti, oldTagId - shiftAmount);
 		}
 	}
 	
-	for (int i = toRemove.size() - 1; i >= 0; i--) {
-		int deadIndex = toRemove.get(i);
-		ontologyClasses.remove(deadIndex);
-		filesPerOntology.remove(deadIndex);
+	System.out.println("Database Vacuum Complete. Reclaimed " + reclaimed + " class identities.");
+}
+
+/**
+ * Generates a privacy-masked, parser-friendly string representation of the DAG topology.
+ * This is designed exclusively for telemetry and crash dumps.
+ * No names or paths are exposed, ensuring complete user privacy.
+ */
+public String generatePrivacyMaskedDagDump() {
+	StringBuilder dump = new StringBuilder();
+	dump.append("--- ONTOLOGY DAG TOPOLOGY DUMP ---\n");
+	for (OntologyClass oc : ontologyClasses) {
+		if (oc == null) {
+			dump.append("Class_TOMBSTONE\n");
+			continue;
+		}
+		dump.append("Class_ID_").append(oc.identityNumber).append(" -> Parents: [");
+		for (int i = 0; i < oc.parents.size(); i++) {
+			dump.append(oc.parents.get(i).identityNumber);
+			if (i < oc.parents.size() - 1) dump.append(", ");
+		}
+		dump.append("], Children: [");
+		for (int i = 0; i < oc.children.size(); i++) {
+			dump.append(oc.children.get(i).identityNumber);
+			if (i < oc.children.size() - 1) dump.append(", ");
+		}
+		dump.append("]\n");
 	}
-	
-	System.out.println("Database Vacuum Complete. Reclaimed " + toRemove.size() + " class identities.");
+	dump.append("--- END OF DAG DUMP ---\n");
+	return dump.toString();
 }
 
 public OntologyClass getClassFromIdentity(int anInt) {
@@ -100,14 +139,14 @@ public OntologyClass getClassFromIdentity(int anInt) {
 public int getIdentityFromClass(@NotNull OntologyClass oc) { return ontologyClasses.indexOf(oc); }
 
 // ////////////////// Ontology Service:
+// Replace the OntologyHierarchyReader block inside OntologyHierarchyFast.java
 
 public class OntologyHierarchyReader implements OntologyReadingService {
-	public final OntologyClass ROOT_TEMPORAL_CLASS;
 	public final OntologyHierarchyFast hierarchy;
 	public OntologyClass domainEntry;
 	
 	public OntologyHierarchyReader() {
-		ROOT_TEMPORAL_CLASS = OntologyClass.makeROOT_ONTOLOGY_CLASS("View Since:" + new Date().getTime());
+		// ROOT_TEMPORAL_CLASS eradicated. Reader now strictly observes the real graph.
 		hierarchy = OntologyHierarchyFast.this;
 	}
 	
@@ -115,22 +154,9 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 	public OntologyClass getRootOntologyClass() { return ontologyClasses.getFirst(); }
 	
 	@Override
-	@Deprecated
-	public OntologyClass getClassFromName(String name) {
-		for(OntologyClass oc : ontologyClasses) {
-			if(oc != null && oc.name.equals(name)) return oc;
-		}
-		return null;
-	}
-	
-	@Override
 	public OntologyClass getClassFromIdentity(int identity) {
 		return OntologyHierarchyFast.this.getClassFromIdentity(identity);
 	}
-	
-	@Override
-	@Deprecated
-	public String getDomain() { return domainEntry != null ? domainEntry.name : null; }
 	
 	@Override
 	public int getDomainIdentity() { return domainEntry != null ? getIdentityFromClass(domainEntry) : -1; }
@@ -139,42 +165,22 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 	public void setDomain(OntologyClass domain) { this.domainEntry = domain; }
 	
 	@Override
-	@Deprecated
-	public ArrayList<FileInterface> getOntologyElements(String className) {
-		OntologyClass oc = getClassFromName(className);
-		if (oc == null) return new ArrayList<>();
-		return filesPerOntology.get(getIdentityFromClass(oc));
-	}
-	
-	@Override
 	public ArrayList<FileInterface> getOntologyElements(int classIdentity) {
 		if (classIdentity < 0 || classIdentity >= filesPerOntology.size()) return new ArrayList<>();
 		return filesPerOntology.get(classIdentity);
 	}
 	
 	@Override
-	@Deprecated
-	public ArrayList<FileInterface> getAllOntologyElements(String className) {
-		OntologyClass oc = getClassFromName(className);
-		if (oc == null) return new ArrayList<>();
-		
-		HashSet<FileInterface> interfaces = new HashSet<>(filesPerOntology.get(getIdentityFromClass(oc)));
-		for(OntologyClass sub : oc.children) {
-			interfaces.addAll(getAllOntologyElementsSet(sub));
-		}
-		return new ArrayList<>(interfaces);
-	}
-	
-	@Override
 	public ArrayList<FileInterface> getAllOntologyElements(int classIdentity) {
-		OntologyClass oc = getClassFromIdentity(classIdentity);
-		if (oc == null) return new ArrayList<>();
+		OntologyClass startClass = getClassFromIdentity(classIdentity);
+		if (startClass == null) return new ArrayList<>();
 		
-		HashSet<FileInterface> interfaces = new HashSet<>(filesPerOntology.get(classIdentity));
-		for(OntologyClass sub : oc.children) {
-			interfaces.addAll(getAllOntologyElementsSet(sub));
-		}
-		return new ArrayList<>(interfaces);
+		HashSet<FileInterface> aggregatedInterfaces = new HashSet<>();
+		startClass.forEachDescendant(descendant -> {
+			aggregatedInterfaces.addAll(filesPerOntology.get(descendant.identityNumber));
+		});
+		
+		return new ArrayList<>(aggregatedInterfaces);
 	}
 	
 	public HashSet<FileInterface> getAllOntologyElementsSet(OntologyClass ontologyClass) {
@@ -203,7 +209,7 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 	
 	@Override
 	public List<FileInterface> getOntologyElements(@NotNull OntologyFilter filter) {
-		return fileInterfaces.stream().filter(filter::filter).toList();
+		return new ArrayList<>(filter.resolve(this));
 	}
 	
 	@Override
@@ -227,48 +233,9 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	}
 	
 	@Override
-	@Deprecated
-	public void createOntologyClass(String name, ArrayList<String> parentNames, ArrayList<String> childrenNames) {
-		if (getClassFromName(name) != null) throw new OntoDirectoryException("Class '" + name + "' already exists.");
-		
-		OntologyClass noc = new OntologyClass(name, getRootOntologyClass());
-		if (parentNames != null) {
-			for (String pName : parentNames) {
-				OntologyClass parent = getClassFromName(pName);
-				if (parent != null) noc.addParent(parent);
-				else throw new OntoDirectoryException("One element in the parents array of '" + name + "' was null");
-			}
-		}
-		if (childrenNames != null) {
-			for (String cName : childrenNames) {
-				OntologyClass child = getClassFromName(cName);
-				if (child != null) child.addParent(noc);
-				else throw new OntoDirectoryException("One element in the children array of '" + name + "' was null");
-			}
-		}
-		
-		insertNewClass(noc);
-		
-		OntologyMemento memento = new OntologyMemento();
-		memento.actionType = OntologyMemento.ActionType.Create;
-		memento.primaryTarget = name;
-		recordAction(memento);
-	}
-	@Override
 	public int filterToClass(OntologyFilter filter, String newClassName) {
 		int newClassId = createOntologyClass(newClassName, (List<Integer>) null, null);
-		
-		OntologyClass newClass = null;
-		
-		// Locate the newly appended identity
-		for (int i = ontologyClasses.size() - 1; i >= 0; i--) {
-			if (ontologyClasses.get(i) != null && ontologyClasses.get(i).name.equals(newClassName)) {
-				newClass = ontologyClasses.get(i);
-				newClassId = i;
-				break;
-			}
-		}
-		
+		OntologyClass newClass = getClassFromIdentity(newClassId);
 		if (newClass == null) return -1;
 		
 		List<FileInterface> matchedFiles = getOntologyElements(filter);
@@ -281,31 +248,29 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	
 	@Override
 	public int createOntologyClass(String name, List<Integer> parentIds, List<Integer> childrenIds) {
-		if (getClassFromName(name) != null) throw new OntoDirectoryException("Class '" + name + "' already exists.");
-		
 		OntologyClass noc = new OntologyClass(name, getRootOntologyClass());
 		if (parentIds != null) {
 			for (Integer pId : parentIds) {
 				OntologyClass parent = getClassFromIdentity(pId);
-				System.out.println("Parent of " + name + " id" + pId);
 				if (parent != null) noc.addParent(parent);
-				else throw new OntoDirectoryException("One element in the parents array of '" + name + "' was null");
+				else
+					throw new OntoDirectoryException("One element in the parents array of '" + name + "' was null");
 			}
 		}
 		if (childrenIds != null) {
 			for (Integer cId : childrenIds) {
 				OntologyClass child = getClassFromIdentity(cId);
 				if (child != null) child.addParent(noc);
-				else throw new OntoDirectoryException("One element in the children array of '" + name + "' was null");
+				else
+					throw new OntoDirectoryException("One element in the children array of '" + name + "' was null");
 			}
 		}
-		System.out.println("Created ontology class '" + name + "'" + " pc:" + noc.parents.size());
-		noc.parents.forEach(p -> System.out.println("Parent of " + name + " id" + p.identityNumber));
+		
 		insertNewClass(noc);
 		
 		OntologyMemento memento = new OntologyMemento();
 		memento.actionType = OntologyMemento.ActionType.Create;
-		memento.primaryTarget = name; // Resolved for Memento compatibility
+		memento.primaryTargetId = noc.identityNumber; // Switched to strict int
 		recordAction(memento);
 		return noc.identityNumber;
 	}
@@ -323,52 +288,49 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		}
 	}
 	
-	public void createOntologyClass(String name) { createOntologyClass(name, (List<Integer>)null, null); }
+	public void createOntologyClass(String name) {
+		createOntologyClass(name, (List<Integer>) null, null);
+	}
 	
 	public void createNewSubClass(OntologyClass parentC, String name) {
 		createOntologyClass(name, new ArrayList<>(List.of(getIdentityFromClass(parentC))), null);
 	}
 	
 	@Override
-	@Deprecated
-	public void removeOntologyClass(String name) {
-		OntologyClass oc = getClassFromName(name);
-		executeRemove(oc);
-	}
-	
-	@Override
 	public void removeOntologyClass(int classIdentity) {
 		OntologyClass oc = getClassFromIdentity(classIdentity);
-		executeRemove(oc);
-	}
-	
-	private void executeRemove(OntologyClass oc) {
 		if (oc == null || oc == getRootOntologyClass()) return;
 		
-		for (OntologyClass parent : oc.parents) { parent.children.remove(oc); }
-		for (OntologyClass child : oc.children) { child.parents.remove(oc); }
-		
 		int targetIndex = getIdentityFromClass(oc);
+		
+		OntologyMemento memento = new OntologyMemento();
+		memento.actionType = OntologyMemento.ActionType.Remove;
+		memento.primaryTargetId = targetIndex;
+		memento.classSnapshot = oc;
+		memento.fileListSnapshot = new ArrayList<>(filesPerOntology.get(targetIndex));
+		
+		for (OntologyClass parent : oc.parents) {
+			parent.children.remove(oc);
+		}
+		for (OntologyClass child : oc.children) {
+			child.parents.remove(oc);
+		}
+		
 		ontologyClasses.set(targetIndex, null);
 		filesPerOntology.get(targetIndex).forEach(fi -> {
-			if(fi.tagsByIdentity != null) {
+			if (fi.tagsByIdentity != null) {
 				fi.tagsByIdentity.remove(Integer.valueOf(targetIndex));
 			}
 		});
 		filesPerOntology.set(targetIndex, null);
 		
-		OntologyMemento memento = new OntologyMemento();
-		memento.actionType = OntologyMemento.ActionType.Remove;
-		memento.primaryTarget = oc.name;
 		recordAction(memento);
 	}
 	
 	@Override
-	@Deprecated
-	public void addParent(String className, String parentName) {
-		OntologyClass child = getClassFromName(className);
-		OntologyClass parent = getClassFromName(parentName);
-		executeAddParent(child, parent);
+	public void restoreOntologyClass(int identity, OntologyClass snapshot, ArrayList<FileInterface> fileSnap) {
+		ontologyClasses.set(identity, snapshot); // Overwrites the null tombstone
+		filesPerOntology.set(identity, fileSnap != null ? new ArrayList<>(fileSnap) : new ArrayList<>());
 	}
 	
 	@Override
@@ -404,134 +366,85 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	public void addParent(int childId, int parentId) {
 		OntologyClass child = getClassFromIdentity(childId);
 		OntologyClass parent = getClassFromIdentity(parentId);
-		executeAddParent(child, parent);
-	}
-	
-	private void executeAddParent(OntologyClass child, OntologyClass parent) {
 		if (child != null && parent != null) {
 			child.addParent(parent);
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.AddParent;
-			memento.primaryTarget = child.name;
-			memento.secondaryTarget = parent.name;
+			memento.primaryTargetId = childId;      // Switched to strict int
+			memento.secondaryTargetId = parentId;    // Switched to strict int
 			recordAction(memento);
 		}
-	}
-	
-	@Override
-	@Deprecated
-	public void removeParent(String className, String parentName) {
-		OntologyClass child = getClassFromName(className);
-		OntologyClass parent = getClassFromName(parentName);
-		executeRemoveParent(child, parent);
 	}
 	
 	@Override
 	public void removeParent(int childId, int parentId) {
 		OntologyClass child = getClassFromIdentity(childId);
 		OntologyClass parent = getClassFromIdentity(parentId);
-		executeRemoveParent(child, parent);
-	}
-	
-	private void executeRemoveParent(OntologyClass child, OntologyClass parent) {
 		if (child != null && parent != null) {
 			child.removeParent(parent);
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.RemoveParent;
-			memento.primaryTarget = child.name;
-			memento.secondaryTarget = parent.name;
+			memento.primaryTargetId = childId;
+			memento.secondaryTargetId = parentId;
 			recordAction(memento);
 		}
 	}
 	
 	@Override
-	@Deprecated
-	public void addElement(String className, FileInterface file) {
-		OntologyClass targetClass = getClassFromName(className);
-		executeAddElement(targetClass, file);
-	}
-	
-	@Override
 	public void addElement(int classIdentity, FileInterface file) {
 		OntologyClass targetClass = getClassFromIdentity(classIdentity);
-		executeAddElement(targetClass, file);
-	}
-	
-	private void executeAddElement(OntologyClass targetClass, FileInterface file) {
 		if (targetClass == null) return;
 		
 		ArrayList<FileInterface> fileList = filesPerOntology.get(getIdentityFromClass(targetClass));
 		if (!fileList.contains(file)) {
 			fileList.add(file);
 			
-			if(file.tagsByIdentity == null) {
+			if (file.tagsByIdentity == null) {
 				file.tagsByIdentity = new ArrayList<>();
 			}
 			file.tagsByIdentity.add(getIdentityFromClass(targetClass));
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.AddElement;
-			memento.primaryTarget = targetClass.name;
+			memento.primaryTargetId = classIdentity;
 			memento.targetFile = file;
 			recordAction(memento);
 		}
-	}
-	
-	@Override
-	@Deprecated
-	public void removeElement(String className, FileInterface file) {
-		OntologyClass targetClass = getClassFromName(className);
-		executeRemoveElement(targetClass, file);
 	}
 	
 	@Override
 	public void removeElement(int classIdentity, FileInterface file) {
 		OntologyClass targetClass = getClassFromIdentity(classIdentity);
-		executeRemoveElement(targetClass, file);
-	}
-	
-	private void executeRemoveElement(OntologyClass targetClass, FileInterface file) {
 		if (targetClass == null) return;
 		
 		int classId = getIdentityFromClass(targetClass);
 		ArrayList<FileInterface> fileList = filesPerOntology.get(classId);
 		if (fileList.remove(file)) {
-			if(file.tagsByIdentity != null) {
+			if (file.tagsByIdentity != null) {
 				file.tagsByIdentity.remove(Integer.valueOf(classId));
 			}
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.RemoveElement;
-			memento.primaryTarget = targetClass.name;
+			memento.primaryTargetId = classIdentity;
 			memento.targetFile = file;
 			recordAction(memento);
 		}
 	}
 	
 	@Override
-	@Deprecated
-	public void renameOntologyClass(String className, String newName) {
-		OntologyClass targetClass = getClassFromName(className);
-		executeRename(targetClass, newName);
-	}
-	
-	@Override
 	public void renameOntologyClass(int classIdentity, String newName) {
 		OntologyClass targetClass = getClassFromIdentity(classIdentity);
-		executeRename(targetClass, newName);
-	}
-	
-	private void executeRename(OntologyClass targetClass, String newName) {
 		if (targetClass != null && targetClass != getRootOntologyClass()) {
-			String oldName = targetClass.name;
+			String oldName = targetClass.name; // CRITICAL FIX: Save the previous state
 			targetClass.name = newName;
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.Rename;
-			memento.primaryTarget = oldName;
-			memento.secondaryTarget = newName;
+			memento.primaryTargetId = classIdentity;
+			memento.stringPayload = oldName; // So `undo()` knows what to revert to
 			recordAction(memento);
 		}
 	}
@@ -542,7 +455,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		isReplaying = true;
 		try {
 			OntologyMemento memento = undoStack.pop();
-			memento.undo(this);
+			memento.undo(this, this);
 			redoStack.push(memento);
 		} finally {
 			isReplaying = false;
@@ -555,7 +468,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		isReplaying = true;
 		try {
 			OntologyMemento memento = redoStack.pop();
-			memento.undo(this);
+			memento.undo(this, this);
 			undoStack.push(memento);
 		} finally {
 			isReplaying = false;

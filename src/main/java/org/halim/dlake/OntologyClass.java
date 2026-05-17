@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Represents a node within the Data Lake's ontology hierarchy.
@@ -194,6 +195,31 @@ public boolean isHeritage(OntologyClass candidate) {
 		if(c.isHeritage(candidate)) { return true; }
 	}
 	return false;
+}
+
+
+/**
+ * Executes the given action for this class and all of its descendants in the DAG.
+ * Utilizes a visited set to handle diamond-shaped inheritance without redundant cycles.
+ */
+public void forEachDescendant(Consumer<OntologyClass> action) {
+	Set<OntologyClass> visited = new HashSet<>();
+	Deque<OntologyClass> stack = new ArrayDeque<>();
+	
+	stack.push(this);
+	
+	while (!stack.isEmpty()) {
+		OntologyClass current = stack.pop();
+		
+		if (visited.add(current)) { // Only returns true if not already processed
+			action.accept(current);
+			for (OntologyClass child : current.children) {
+				if (!visited.contains(child)) {
+					stack.push(child);
+				}
+			}
+		}
+	}
 }
 
 ///////// Safe Functions

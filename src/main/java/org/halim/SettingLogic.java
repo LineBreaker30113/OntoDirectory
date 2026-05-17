@@ -32,7 +32,7 @@ private static final Path OS_HOME = Paths.get(System.getProperty("user.home"));
 private static final Path DEFAULT_PROD_DIR = OS_HOME.resolve(".config/onto-directory");
 
 // 1. Check for a custom property passed at startup. If it doesn't exist, use the production directory.
-private static final Path ACTIVE_CONFIG_DIR = Paths.get(System.getProperty("onto.dev.dir", DEFAULT_PROD_DIR.toString()));
+static final Path ACTIVE_CONFIG_DIR = Paths.get(System.getProperty("onto.dev.dir", DEFAULT_PROD_DIR.toString()));
 
 // 2. Build the final path
 private static final Path LINUX_SFP = ACTIVE_CONFIG_DIR.resolve("settings.xml");

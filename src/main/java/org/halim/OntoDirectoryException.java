@@ -3,6 +3,10 @@ package org.halim;
 public class OntoDirectoryException extends RuntimeException {
 public OntoDirectoryException(String message) { super(message); }
 
+/** Ontology Hierarchy has unintended state. */
+public static class OntologyHierarchyHasUnintendedStateException extends OntoDirectoryException {
+	public OntologyHierarchyHasUnintendedStateException(String message) { super(message); }
+}
 public static class NullGivenAsOntologyClassException extends OntoDirectoryException {
 	public NullGivenAsOntologyClassException(String message) { super(message); }
 }
