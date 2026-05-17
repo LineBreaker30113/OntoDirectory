@@ -12,7 +12,7 @@ To compile use JDK21, clone this repo, "mvn clean package".
 
 Goal is MVP, made of 4 things working properly "Welcome/Instructions Manual", "dlake package", "Tree View", "Files View".
 
-Can gain about information about many architecture decisions from the ""
+Can gain information about many architecture decisions from the "main/resources/manual.md"
 
 You can make a text representative full code base you can run 
 ```shell
