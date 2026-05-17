@@ -116,7 +116,15 @@ private void buildUI() {
 	settingsList.setSidePanelsColor(Utilities.LIST_HEADER_BG);
 	
 	settingsList.addElement(createSettingToggle("Dark Theme", SettingLogic.isDarkTheme,
-		  e -> SettingLogic.setSystemTheme(((JCheckBox)e.getSource()).isSelected())));
+		  e -> {
+		SettingLogic.setSystemTheme(((JCheckBox)e.getSource()).isSelected());
+			  if (SettingLogic.isDarkTheme) {
+				  com.formdev.flatlaf.FlatDarculaLaf.setup();
+			  } else {
+				  com.formdev.flatlaf.FlatLightLaf.setup();
+			  }
+			  SwingUtilities.updateComponentTreeUI(owner.appController.view.getTopLevelAncestor());
+	}));
 	settingsList.addElement(createSettingToggle("Native System File Chooser", SettingLogic.isSystemFileChooser,
 		  e -> SettingLogic.setSystemFileChooser(((JCheckBox)e.getSource()).isSelected())));
 	

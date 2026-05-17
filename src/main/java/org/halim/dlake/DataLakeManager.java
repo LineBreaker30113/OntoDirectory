@@ -15,6 +15,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class DataLakeManager implements OntoDirectoryService.DataLakeService {
 
@@ -32,6 +34,10 @@ public static final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yy
 public final Path managerPath;
 public boolean isCorrupted = false;
 
+// --- Thread Safety Perimeter ---
+private final ReentrantReadWriteLock ontoLock = new ReentrantReadWriteLock();
+private final AtomicBoolean dirtyFlag = new AtomicBoolean(false);
+
 public OntologyHierarchyFast ontologyHierarchy;
 private final OntologyStorageService storageService;
 
@@ -47,7 +53,11 @@ public Path getLakeElements() { return this.managerPath.resolve(elementsPathSuff
 public Path getBugReportsDir() { return this.managerPath.resolve(bugReportsSuffix); }
 public Path getBreadcrumbsFile() { return getBugReportsDir().resolve(breadcrumbsSuffix); }
 
-private OntologyReadingService.OntologyManagingService ontologyHierarchyManager;
+// Internal raw manager. We NEVER leak this directly to the ports anymore.
+private final OntologyReadingService.OntologyManagingService rawHierarchyManager;
+// Thread-safe facades
+private final ThreadSafeReadingService safeReadingService;
+private final ThreadSafeManagingService safeManagingService;
 
 public DataLakeManager(@NotNull Path managerPath, @NotNull OntologyStorageService storageService) {
 	this.managerPath = managerPath;
@@ -71,7 +81,13 @@ public DataLakeManager(@NotNull Path managerPath, @NotNull OntologyStorageServic
 	}
 	
 	initBreadcrumbs();
-	ontologyHierarchyManager = ontologyHierarchy.new OntologyHierarchyManager();
+	this.rawHierarchyManager = ontologyHierarchy.new OntologyHierarchyManager();
+	this.safeReadingService = new ThreadSafeReadingService(rawHierarchyManager);
+	this.safeManagingService = new ThreadSafeManagingService(rawHierarchyManager);
+}
+
+public boolean isDirty() {
+	return dirtyFlag.get();
 }
 
 private void createLake() {
@@ -86,24 +102,35 @@ private void createLake() {
 	}
 	System.out.println("Created Data Lake directory: " + getLakePath());
 	ontologyHierarchy = new OntologyHierarchyFast();
+	dirtyFlag.set(true);
 	saveChanges();
 }
 
 @Override
 public void executeVacuum() {
-	if (isCorrupted) {
-		System.err.println("Vacuum aborted. Data Lake is flagged as corrupted/locked.");
-		return;
+	ontoLock.writeLock().lock();
+	try {
+		if (isCorrupted) {
+			System.err.println("Vacuum aborted. Data Lake is flagged as corrupted/locked.");
+			return;
+		}
+		ontologyHierarchy.vacuumDatabase(managerPath);
+		dirtyFlag.set(true);
+		logActivity("Executed Database Vacuum (Tombstone Defragmentation)");
+		notifyListeners();
+	} finally {
+		ontoLock.writeLock().unlock();
 	}
-	ontologyHierarchy.vacuumDatabase(managerPath);
-	saveChanges();
-	logActivity("Executed Database Vacuum (Tombstone Defragmentation)");
-	notifyListeners();
 }
 
 @Override
 public Path generateDiagnosticDump(Throwable ex) {
-	return CrashReporter.generateCrashDump(ex, this);
+	ontoLock.readLock().lock();
+	try {
+		return CrashReporter.generateCrashDump(ex, this);
+	} finally {
+		ontoLock.readLock().unlock();
+	}
 }
 
 private void initBreadcrumbs() {
@@ -140,9 +167,10 @@ public void importFiles() { importFiles(getLakeImports()); }
 
 @Override
 public void importFiles(Path sourceDirectory) {
-	if (isCorrupted) throw new OntoDirectoryException("Cannot import to a corrupted or locked Data Lake.");
-	
+	ontoLock.writeLock().lock();
 	try {
+		if (isCorrupted) throw new OntoDirectoryException("Cannot import to a corrupted or locked Data Lake.");
+		
 		if (!Files.exists(sourceDirectory)) {
 			if (sourceDirectory.equals(getLakeImports())) {
 				Files.createDirectories(sourceDirectory);
@@ -152,7 +180,7 @@ public void importFiles(Path sourceDirectory) {
 		
 		if (Files.isRegularFile(sourceDirectory)) {
 			processSingleImport(sourceDirectory);
-			saveChanges();
+			dirtyFlag.set(true);
 			notifyListeners();
 			return;
 		}
@@ -165,7 +193,7 @@ public void importFiles(Path sourceDirectory) {
 		
 		String temporalClassName = "imported_at_" + simpleDateFormat.format(new Date());
 		
-		OntologyReadingService.OntologyManagingService oms = getOntologyManagingService();
+		OntologyReadingService.OntologyManagingService oms = rawHierarchyManager;
 		int temporalTagId = oms.createOntologyClass(temporalClassName, (List<Integer>) null, null);
 		OntologyClass temporalTagClass = oms.getClassFromIdentity(temporalTagId);
 		
@@ -173,11 +201,13 @@ public void importFiles(Path sourceDirectory) {
 			processSingleImportInternal(physicalFile, temporalTagClass, oms);
 		}
 		
-		saveChanges();
+		dirtyFlag.set(true);
 		notifyListeners();
 		
 	} catch (IOException e) {
 		throw new OntoDirectoryException("Fatal Error during Ingestion: " + e.getMessage());
+	} finally {
+		ontoLock.writeLock().unlock();
 	}
 }
 
@@ -185,11 +215,10 @@ private void processSingleImport(Path physicalFile) {
 	long timestamp = System.currentTimeMillis() / 1000L;
 	String temporalClassName = "imported_at_" + timestamp;
 	
-	OntologyReadingService.OntologyManagingService oms = getOntologyManagingService();
+	OntologyReadingService.OntologyManagingService oms = rawHierarchyManager;
 	int temporalTagId = oms.createOntologyClass(temporalClassName, (List<Integer>) null, null);
 	OntologyClass temporalTagClass = oms.getClassFromIdentity(temporalTagId);
 	
-	// Removed the duplicate root assignment bug. Wires perfectly to the temporal tag.
 	processSingleImportInternal(physicalFile, temporalTagClass, oms);
 }
 
@@ -223,12 +252,13 @@ public void exportFiles(OntologyFilter filter) {
 
 @Override
 public void exportFiles(OntologyFilter filter, Path destinationFolder) {
+	ontoLock.readLock().lock();
 	try {
 		if (!Files.exists(destinationFolder)) {
 			Files.createDirectories(destinationFolder);
 		}
 		
-		List<FileInterface> matchedFiles = getOntologyReadingService().getOntologyElements(filter);
+		List<FileInterface> matchedFiles = rawHierarchyManager.getOntologyElements(filter);
 		
 		for (FileInterface file : matchedFiles) {
 			Path targetPath = destinationFolder.resolve(file.actualName);
@@ -239,16 +269,19 @@ public void exportFiles(OntologyFilter filter, Path destinationFolder) {
 		
 	} catch (IOException e) {
 		throw new OntoDirectoryException("Failed to export files to " + destinationFolder.getFileName() + ": " + e.getMessage());
+	} finally {
+		ontoLock.readLock().unlock();
 	}
 }
 
 @Override
 public void saveChanges() {
-	if (isCorrupted) {
-		System.err.println("Save aborted. Data Lake is flagged as corrupted/locked.");
-		return;
-	}
+	ontoLock.writeLock().lock();
 	try {
+		if (isCorrupted) {
+			System.err.println("Save aborted. Data Lake is flagged as corrupted/locked.");
+			return;
+		}
 		if (Files.exists(getLakeHierarchy())) {
 			Files.copy(getLakeHierarchy(), managerPath.resolve(hierarchyPathSuffix + ".bak"), StandardCopyOption.REPLACE_EXISTING);
 		}
@@ -258,22 +291,24 @@ public void saveChanges() {
 		
 		storageService.saveOntologyHierarchy(getLakeHierarchy(), ontologyHierarchy);
 		storageService.saveOntologyElements(getLakeElements(), ontologyHierarchy.fileInterfaces);
+		dirtyFlag.set(false); // Clean the dirty flag ONLY after a successful flush
 		System.out.println("Data Lake State Synced to Disk.");
-		logActivity("DAG State Persisted to Disk.");
 		
 	} catch (IOException e) {
 		throw new OntoDirectoryException("Failed to save Lake state: " + e.getMessage());
+	} finally {
+		ontoLock.writeLock().unlock();
 	}
 }
 
 @Override
 public OntologyReadingService getOntologyReadingService() {
-	return ontologyHierarchy.new OntologyHierarchyReader();
+	return safeReadingService;
 }
 
 @Override
 public OntologyReadingService.OntologyManagingService getOntologyManagingService() {
-	return ontologyHierarchyManager;
+	return safeManagingService;
 }
 
 @Override
@@ -288,5 +323,145 @@ public void addDataLakeServiceListener(DataLakeServiceListener listener) {
 
 private void notifyListeners() {
 	for (DataLakeServiceListener listener : listeners) listener.onChange();
+}
+
+// =========================================================================
+// THE HEXAGONAL PROXIES (Strict Thread-Safe Enclosures)
+// =========================================================================
+
+private class ThreadSafeReadingService implements OntologyReadingService {
+	protected final OntologyReadingService delegate;
+	public ThreadSafeReadingService(OntologyReadingService delegate) { this.delegate = delegate; }
+	
+	@Override public OntologyClass getRootOntologyClass() { ontoLock.readLock().lock(); try { return delegate.getRootOntologyClass(); } finally { ontoLock.readLock().unlock(); } }
+	@Override public OntologyClass getClassFromIdentity(int identity) { ontoLock.readLock().lock(); try { return delegate.getClassFromIdentity(identity); } finally { ontoLock.readLock().unlock(); } }
+	@Override public int getDomainIdentity() { ontoLock.readLock().lock(); try { return delegate.getDomainIdentity(); } finally { ontoLock.readLock().unlock(); } }
+	@Override public void setDomain(OntologyClass domain) { ontoLock.writeLock().lock(); try { delegate.setDomain(domain); } finally { ontoLock.writeLock().unlock(); } }
+	@Override public ArrayList<FileInterface> getOntologyElements(int classIdentity) { ontoLock.readLock().lock(); try { return delegate.getOntologyElements(classIdentity); } finally { ontoLock.readLock().unlock(); } }
+	@Override public ArrayList<FileInterface> getAllOntologyElements(int classIdentity) { ontoLock.readLock().lock(); try { return delegate.getAllOntologyElements(classIdentity); } finally { ontoLock.readLock().unlock(); } }
+	@Override public boolean isElementForFilter(OntologyClass oc, FileInterface fi) { ontoLock.readLock().lock(); try { return delegate.isElementForFilter(oc, fi); } finally { ontoLock.readLock().unlock(); } }
+	@Override public boolean isDescendentForFilter(OntologyClass oc, FileInterface fi) { ontoLock.readLock().lock(); try { return delegate.isDescendentForFilter(oc, fi); } finally { ontoLock.readLock().unlock(); } }
+	@Override public List<FileInterface> getOntologyElements(@NotNull OntologyFilter filter) { ontoLock.readLock().lock(); try { return delegate.getOntologyElements(filter); } finally { ontoLock.readLock().unlock(); } }
+	@Override public void addOntologyServiceListener(OntologyServiceListener listener) { ontoLock.writeLock().lock(); try { delegate.addOntologyServiceListener(listener); } finally { ontoLock.writeLock().unlock(); } }
+}
+
+private class ThreadSafeManagingService extends ThreadSafeReadingService implements OntologyReadingService.OntologyManagingService {
+	private final OntologyReadingService.OntologyManagingService delegate;
+	public ThreadSafeManagingService(OntologyReadingService.OntologyManagingService delegate) {
+		super(delegate);
+		this.delegate = delegate;
+	}
+	
+	private void markDirty() { dirtyFlag.set(true); }
+	
+	@Override public int filterToClass(OntologyFilter f, String n) {
+		ontoLock.writeLock().lock();
+		try {
+			int r = delegate.filterToClass(f, n);
+			markDirty();
+			logActivity("Filtered to new class: " + n);
+			return r;
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void copyContentsTo(int s, int t, boolean p, boolean c, boolean f) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.copyContentsTo(s, t, p, c, f);
+			markDirty();
+			logActivity("Copied contents from ID:" + s + " to ID:" + t);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public int createOntologyClass(String n, List<Integer> p, List<Integer> c) {
+		ontoLock.writeLock().lock();
+		try {
+			int r = delegate.createOntologyClass(n, p, c);
+			markDirty();
+			logActivity("Created Ontology Class: " + n);
+			return r;
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void removeOntologyClass(int i) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.removeOntologyClass(i);
+			markDirty();
+			logActivity("Removed Ontology Class ID: " + i);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void restoreOntologyClass(int i, OntologyClass s, ArrayList<FileInterface> f) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.restoreOntologyClass(i, s, f);
+			markDirty();
+			logActivity("Restored Ontology Class ID: " + i);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void addParent(int c, int p) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.addParent(c, p);
+			markDirty();
+			logActivity("Added Parent ID: " + p + " to Child ID: " + c);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void removeParent(int c, int p) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.removeParent(c, p);
+			markDirty();
+			logActivity("Removed Parent ID: " + p + " from Child ID: " + c);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void addElement(int i, FileInterface f) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.addElement(i, f);
+			markDirty();
+			logActivity("Added File " + f.actualName + " to Class ID: " + i);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void removeElement(int i, FileInterface f) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.removeElement(i, f);
+			markDirty();
+			logActivity("Removed File " + f.actualName + " from Class ID: " + i);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void renameOntologyClass(int i, String n) {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.renameOntologyClass(i, n);
+			markDirty();
+			logActivity("Renamed Class ID: " + i + " to " + n);
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void undo() {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.undo();
+			markDirty();
+			logActivity("Executed Undo");
+		} finally { ontoLock.writeLock().unlock(); }
+	}
+	
+	@Override public void redo() {
+		ontoLock.writeLock().lock();
+		try {
+			delegate.redo();
+			markDirty();
+			logActivity("Executed Redo");
+		} finally { ontoLock.writeLock().unlock(); }
+	}
 }
 }

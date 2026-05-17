@@ -92,4 +92,33 @@ class OrFilter implements OntologyFilter {
 	}
 	@Override public String toString() { return "(" + f1 + " OR " + f2 + ")"; }
 }
+
+// ---------------------------------------------------------
+// DATABASE QUERIES (Querying Filters)
+// ---------------------------------------------------------
+
+/** Narrows down a domain of files to only those containing a specific substring in their actual name. */
+class WithNameContaining implements OntologyFilter {
+	public final OntologyFilter baseDomain;
+	public final String query;
+	
+	public WithNameContaining(OntologyFilter baseDomain, String query) {
+		this.baseDomain = baseDomain;
+		this.query = query.toLowerCase(); // Standardize for case-insensitive search
+	}
+	
+	@Override
+	public Set<FileInterface> resolve(OntologyReadingService ors) {
+		Set<FileInterface> elements = baseDomain.resolve(ors);
+		// O(N) filtering on the resolved subset
+		elements.removeIf(file -> file.actualName == null || !file.actualName.toLowerCase().contains(query));
+		return elements;
+	}
+	
+	@Override
+	public String toString() {
+		return "(" + baseDomain + " FILTER_NAME: '" + query + "')";
+	}
+}
+
 }

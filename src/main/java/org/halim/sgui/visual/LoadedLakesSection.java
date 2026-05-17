@@ -15,21 +15,21 @@ import java.util.List;
 
 public class LoadedLakesSection extends JPanel {
 
-private final LeftSidebar parent;
+private final LeftSidebar leftSidebar;
 private final JPanel lakesContainer;
 private final JLabel dataLakeHeaderLabel;
 private final List<DataLakeHeaderTab> lakeItems = new ArrayList<>();
 
-public LoadedLakesSection(LeftSidebar parent) {
-	this.parent = parent;
-	setBackground(parent.getBackground().darker());
+public LoadedLakesSection(LeftSidebar leftSidebar) {
+	this.leftSidebar = leftSidebar;
+	setBackground(leftSidebar.getBackground().darker());
 	setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 	
 	JPanel headerPanel = new JPanel(new BorderLayout());
 	headerPanel.setBackground(Color.BLACK);
 	headerPanel.setAlignmentX(Component.RIGHT_ALIGNMENT);
 	headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
-	headerPanel.setPreferredSize(new Dimension(parent.expanded, 56));
+	headerPanel.setPreferredSize(new Dimension(leftSidebar.expanded, 56));
 	
 	Icon lockersIcon = Utilities.loadSVGIcon("icons/lockers.svg", 40, 40, Utilities.GOLDEN_COLOR);
 	
@@ -120,7 +120,7 @@ private static class DataLakeHeaderTab {
 		
 		// --- 1. Main Lake Selection Button ---
 		mainButton = new JButton(lakeName);
-		mainButton.addActionListener(__ -> section.parent.owner.appController.servicePort.dispatchLakeChooseRequest(identity));
+		mainButton.addActionListener(__ -> section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity));
 		mainButton.setActionCommand(lakeName);
 		mainButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
 		mainButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
@@ -143,16 +143,14 @@ private static class DataLakeHeaderTab {
 		
 		// THE FIX: Defer deletion to EDT tail to bypass synchronous UI rebuilds
 		closeBtn.addActionListener(e -> {
-			int res = JOptionPane.showConfirmDialog(section.parent.owner, "Save and close Data Lake '" + lakeName + "'?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+			int res = JOptionPane.showConfirmDialog(section.leftSidebar.owner, "Save and close Data Lake '" + lakeName + "'?", "Confirm Close", JOptionPane.YES_NO_OPTION);
 			if (res == JOptionPane.YES_OPTION) {
-				section.parent.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+				section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
 				
 				SwingUtilities.invokeLater(() -> {
-					OntoDirectoryService.DataLakeService lake = section.parent.owner.appController.servicePort.getActiveDataLake();
+					OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
 					if (lake != null && lake.getRootPath().equals(identity)) {
-						lake.saveChanges();
-						section.parent.owner.appController.servicePort.deleteLake(lake);
-						section.parent.owner.appController.wsModeller.triggerLakeRefresh(null);
+						section.leftSidebar.owner.appController.dispatchLakeCloseRequest(lake);
 					}
 					section.unsignDataLake(identity);
 				});
@@ -171,8 +169,8 @@ private static class DataLakeHeaderTab {
 					menu.add(m1); menu.add(m2);
 					menu.show(e.getComponent(), e.getX(), e.getY());
 				} else if (SwingUtilities.isLeftMouseButton(e) && e.getID() == MouseEvent.MOUSE_RELEASED) {
-					section.parent.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
-					OntoDirectoryService.DataLakeService lake = section.parent.owner.appController.servicePort.getActiveDataLake();
+					section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+					OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
 					if (lake != null) lake.importFiles();
 				}
 			}
@@ -190,7 +188,7 @@ private static class DataLakeHeaderTab {
 					menu.add(m1); menu.add(m2);
 					menu.show(e.getComponent(), e.getX(), e.getY());
 				} else if (SwingUtilities.isLeftMouseButton(e) && e.getID() == MouseEvent.MOUSE_RELEASED) {
-					section.parent.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+					section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
 				}
 			}
 		});

@@ -139,14 +139,12 @@ public OntologyClass getClassFromIdentity(int anInt) {
 public int getIdentityFromClass(@NotNull OntologyClass oc) { return ontologyClasses.indexOf(oc); }
 
 // ////////////////// Ontology Service:
-// Replace the OntologyHierarchyReader block inside OntologyHierarchyFast.java
 
 public class OntologyHierarchyReader implements OntologyReadingService {
 	public final OntologyHierarchyFast hierarchy;
 	public OntologyClass domainEntry;
 	
 	public OntologyHierarchyReader() {
-		// ROOT_TEMPORAL_CLASS eradicated. Reader now strictly observes the real graph.
 		hierarchy = OntologyHierarchyFast.this;
 	}
 	
@@ -270,7 +268,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		
 		OntologyMemento memento = new OntologyMemento();
 		memento.actionType = OntologyMemento.ActionType.Create;
-		memento.primaryTargetId = noc.identityNumber; // Switched to strict int
+		memento.primaryTargetId = noc.identityNumber;
 		recordAction(memento);
 		return noc.identityNumber;
 	}
@@ -309,11 +307,12 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		memento.classSnapshot = oc;
 		memento.fileListSnapshot = new ArrayList<>(filesPerOntology.get(targetIndex));
 		
-		for (OntologyClass parent : oc.parents) {
-			parent.children.remove(oc);
+		// CRITICAL CME FIX: Snapshot arrays and respect encapsulation by using proper methods
+		for (OntologyClass parent : new ArrayList<>(oc.parents)) {
+			oc.removeParent(parent);
 		}
-		for (OntologyClass child : oc.children) {
-			child.parents.remove(oc);
+		for (OntologyClass child : new ArrayList<>(oc.children)) {
+			child.removeParent(oc);
 		}
 		
 		ontologyClasses.set(targetIndex, null);
@@ -329,7 +328,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	
 	@Override
 	public void restoreOntologyClass(int identity, OntologyClass snapshot, ArrayList<FileInterface> fileSnap) {
-		ontologyClasses.set(identity, snapshot); // Overwrites the null tombstone
+		ontologyClasses.set(identity, snapshot);
 		filesPerOntology.set(identity, fileSnap != null ? new ArrayList<>(fileSnap) : new ArrayList<>());
 	}
 	
@@ -371,8 +370,8 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.AddParent;
-			memento.primaryTargetId = childId;      // Switched to strict int
-			memento.secondaryTargetId = parentId;    // Switched to strict int
+			memento.primaryTargetId = childId;
+			memento.secondaryTargetId = parentId;
 			recordAction(memento);
 		}
 	}
@@ -438,13 +437,13 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	public void renameOntologyClass(int classIdentity, String newName) {
 		OntologyClass targetClass = getClassFromIdentity(classIdentity);
 		if (targetClass != null && targetClass != getRootOntologyClass()) {
-			String oldName = targetClass.name; // CRITICAL FIX: Save the previous state
+			String oldName = targetClass.name;
 			targetClass.name = newName;
 			
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.Rename;
 			memento.primaryTargetId = classIdentity;
-			memento.stringPayload = oldName; // So `undo()` knows what to revert to
+			memento.stringPayload = oldName;
 			recordAction(memento);
 		}
 	}

@@ -5,7 +5,6 @@ import org.halim.hport.OntoDirectoryService;
 import org.halim.hport.OntologyReadingService;
 import org.halim.sgui.ApplicationController;
 import org.halim.sgui.sglib.HierarchyView;
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -15,10 +14,8 @@ import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.nio.file.Path;
-import java.util.LinkedList;
+import java.util.*;
 import java.util.List;
-import java.util.Queue;
 
 public class HierarchyTreeView extends HierarchyView {
 
@@ -28,12 +25,10 @@ private DefaultTreeModel treeModel;
 private OntoDirectoryService.DataLakeService currentLakeService = null;
 
 private record TagNodeDto(int identity, String name) {
-	// Strictly for Swing's DefaultTreeCellRenderer
 	@Override
 	public String toString() {
 		return name;
 	}
-	// Strictly for your terminal logging / debug tracing
 	public String toDebugString() {
 		return "[" + name + " :|: " + identity + "]";
 	}
@@ -55,11 +50,9 @@ public HierarchyTreeView(ApplicationController mac) {
 		
 		TagNodeDto clickedTag = (TagNodeDto) node.getUserObject();
 		
-		// Bridge identity surrogate back to Domain class lookup
 		OntologyClass targetClass = currentLakeService.getOntologyReadingService()
 			  .getClassFromIdentity(clickedTag.identity());
 		
-		// Broadcast via the new listener model structure
 		mac.wsModeller.broadcastTagSelection(targetClass.identityNumber);
 	});
 	
@@ -91,38 +84,186 @@ private void handleMouseClick(@NotNull MouseEvent e) {
 private void showContextMenu(MouseEvent e, TagNodeDto clickedTag) {
 	if (currentLakeService == null) return;
 	OntologyReadingService.OntologyManagingService manager = currentLakeService.getOntologyManagingService();
+	OntologyClass targetClass = manager.getClassFromIdentity(clickedTag.identity());
 	
 	JPopupMenu contextMenu = new JPopupMenu();
+	
+	// --- Creation & Structural Links ---
 	JMenuItem createTag = new JMenuItem("Create Sub-Tag Here");
-	JMenuItem removeTag = new JMenuItem("Delete Tag");
+	JMenuItem addParent = new JMenuItem("Add Parent...");
+	JMenuItem addChild = new JMenuItem("Add Existing Tag as Child...");
+	
+	// --- Removals ---
+	JMenuItem removeParent = new JMenuItem("Remove a Parent...");
+	JMenuItem removeChild = new JMenuItem("Remove a Child...");
+	JMenuItem deleteTag = new JMenuItem("Delete Tag Completely");
+	
+	// --- Utilities & Edits ---
+	JMenuItem renameTag = new JMenuItem("Rename Tag");
+	JMenuItem copyContents = new JMenuItem("Copy Contents To...");
+	
+	// --- Undo / Redo ---
+	JMenuItem undoAct = new JMenuItem("Undo Last Action");
+	JMenuItem redoAct = new JMenuItem("Redo Last Action");
+	
+	// --- ACTION LISTENERS ---
 	
 	createTag.addActionListener(a -> {
 		String newName = JOptionPane.showInputDialog(this, "Name for new tag under " + clickedTag.name() + ":");
 		if (newName != null && !newName.trim().isEmpty()) {
 			manager.createOntologyClass(newName.trim(), List.of(clickedTag.identity()), null);
-			currentLakeService.saveChanges();
-			
-			// BACKEND WORKAROUND: The domain layer fails to initialize `identityNumber` dynamically.
-			// By cycling the active state via the driving port, we trigger hydration on reload,
-			// mapping the surrogate key indexes natively without penetrating the hexagonal boundary.
-			Path currentPath = currentLakeService.getRootPath();
-			mac.servicePort.deleteLake(currentLakeService);
-			mac.servicePort.loadDataLake(currentPath.toString());
+			refreshTreeUI();
 		}
 	});
 	
-	removeTag.addActionListener(a -> {
-		int result = JOptionPane.showConfirmDialog(this, "Delete tag '" + clickedTag.name() + "'?", "Confirm", JOptionPane.YES_NO_OPTION);
+	addParent.addActionListener(a -> {
+		Integer parentId = showTagSelector("Select New Parent", getAllTags());
+		if (parentId != null) {
+			manager.addParent(clickedTag.identity(), parentId);
+			refreshTreeUI();
+		}
+	});
+	
+	addChild.addActionListener(a -> {
+		Integer childId = showTagSelector("Select Existing Tag to make a Child", getAllTags());
+		if (childId != null) {
+			manager.addParent(childId, clickedTag.identity());
+			refreshTreeUI();
+		}
+	});
+	
+	removeParent.addActionListener(a -> {
+		List<TagNodeDto> parents = targetClass.parents.stream()
+			  .map(p -> new TagNodeDto(p.identityNumber, p.name)).toList();
+		Integer parentId = showTagSelector("Remove which Parent?", parents);
+		if (parentId != null) {
+			manager.removeParent(clickedTag.identity(), parentId);
+			refreshTreeUI();
+		}
+	});
+	
+	removeChild.addActionListener(a -> {
+		List<TagNodeDto> children = targetClass.children.stream()
+			  .map(c -> new TagNodeDto(c.identityNumber, c.name)).toList();
+		Integer childId = showTagSelector("Remove which Child?", children);
+		if (childId != null) {
+			manager.removeParent(childId, clickedTag.identity());
+			refreshTreeUI();
+		}
+	});
+	
+	deleteTag.addActionListener(a -> {
+		int result = JOptionPane.showConfirmDialog(this, "Delete tag '" + clickedTag.name() + "'? This will orphan its children.", "Confirm Deletion", JOptionPane.YES_NO_OPTION);
 		if (result == JOptionPane.YES_OPTION) {
 			manager.removeOntologyClass(clickedTag.identity());
-			currentLakeService.saveChanges();
-			mac.wsModeller.triggerLakeRefresh(currentLakeService);
+			refreshTreeUI();
 		}
 	});
 	
+	renameTag.addActionListener(a -> {
+		String newName = (String) JOptionPane.showInputDialog(this, "New name for tag:", "Rename", JOptionPane.PLAIN_MESSAGE, null, null, clickedTag.name());
+		if (newName != null && !newName.trim().isEmpty() && !newName.equals(clickedTag.name())) {
+			manager.renameOntologyClass(clickedTag.identity(), newName.trim());
+			refreshTreeUI();
+		}
+	});
+	
+	copyContents.addActionListener(a -> showCopyContentsDialog(clickedTag.identity()));
+	
+	undoAct.addActionListener(a -> { manager.undo(); refreshTreeUI(); });
+	redoAct.addActionListener(a -> { manager.redo(); refreshTreeUI(); });
+	
+	// --- POPULATE MENU ---
 	contextMenu.add(createTag);
-	contextMenu.add(removeTag);
+	contextMenu.add(addParent);
+	contextMenu.add(addChild);
+	contextMenu.addSeparator();
+	contextMenu.add(removeParent);
+	contextMenu.add(removeChild);
+	contextMenu.add(deleteTag);
+	contextMenu.addSeparator();
+	contextMenu.add(renameTag);
+	contextMenu.add(copyContents);
+	contextMenu.addSeparator();
+	contextMenu.add(undoAct);
+	contextMenu.add(redoAct);
+	
 	contextMenu.show(tree, e.getX(), e.getY());
+}
+
+// --- UX HELPER DIALOGS ---
+
+private Integer showTagSelector(String title, List<TagNodeDto> tags) {
+	if (tags.isEmpty()) {
+		JOptionPane.showMessageDialog(this, "No valid tags available for this operation.", "Empty List", JOptionPane.INFORMATION_MESSAGE);
+		return null;
+	}
+	JList<TagNodeDto> list = new JList<>(tags.toArray(new TagNodeDto[0]));
+	list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+	JScrollPane scrollPane = new JScrollPane(list);
+	scrollPane.setPreferredSize(new Dimension(250, 300));
+	
+	int result = JOptionPane.showConfirmDialog(this, scrollPane, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+	if (result == JOptionPane.OK_OPTION && list.getSelectedValue() != null) {
+		return list.getSelectedValue().identity();
+	}
+	return null;
+}
+
+private void showCopyContentsDialog(int sourceId) {
+	List<TagNodeDto> allTags = getAllTags();
+	JComboBox<TagNodeDto> targetDropdown = new JComboBox<>(allTags.toArray(new TagNodeDto[0]));
+	JCheckBox copyParents = new JCheckBox("Copy Parents (Link upwards)", true);
+	JCheckBox copyChildren = new JCheckBox("Copy Children (Link downwards)", true);
+	JCheckBox copyFiles = new JCheckBox("Copy Associated Files", true);
+	
+	JPanel panel = new JPanel(new GridLayout(5, 1, 0, 5));
+	panel.add(new JLabel("Select Target Tag:"));
+	panel.add(targetDropdown);
+	panel.add(copyParents);
+	panel.add(copyChildren);
+	panel.add(copyFiles);
+	
+	int result = JOptionPane.showConfirmDialog(this, panel, "Copy Graph Contents", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+	if (result == JOptionPane.OK_OPTION && targetDropdown.getSelectedItem() != null) {
+		TagNodeDto target = (TagNodeDto) targetDropdown.getSelectedItem();
+		currentLakeService.getOntologyManagingService().copyContentsTo(
+			  sourceId, target.identity(), copyParents.isSelected(), copyChildren.isSelected(), copyFiles.isSelected()
+		);
+		refreshTreeUI();
+	}
+}
+
+// --- DATA LAKE QUERY HELPERS ---
+
+private List<TagNodeDto> getAllTags() {
+	List<TagNodeDto> tags = new ArrayList<>();
+	OntologyReadingService reader = currentLakeService.getOntologyReadingService();
+	OntologyClass root = reader.getRootOntologyClass();
+	if (root == null) return tags;
+	
+	Queue<OntologyClass> q = new LinkedList<>();
+	Set<Integer> visited = new HashSet<>();
+	q.add(root);
+	visited.add(root.identityNumber);
+	
+	while (!q.isEmpty()) {
+		OntologyClass curr = q.poll();
+		tags.add(new TagNodeDto(curr.identityNumber, curr.name));
+		for (OntologyClass child : curr.children) {
+			if (visited.add(child.identityNumber)) {
+				q.add(child);
+			}
+		}
+	}
+	tags.sort(Comparator.comparing(TagNodeDto::name));
+	return tags;
+}
+
+private void refreshTreeUI() {
+	// As designed in Front 2: The background Debouncer flushes 'isDirty' to disk.
+	// We only need to tell the UI controller to rebuild the visual JTree from RAM.
+	mac.wsModeller.triggerLakeRefresh(currentLakeService);
 }
 
 @Override
@@ -133,10 +274,10 @@ protected void clearHierarchy() {
 	}
 }
 
-// --- WORKSPACE LISTENER IMPLEMENTATION MIGRATION ---
+// --- WORKSPACE LISTENER IMPLEMENTATION ---
 
 @Override
-public void onSelectedLakeChange(OntoDirectoryService.DataLakeService dataLakeService) {// 1. Cache the current expansion state before destroying the model
+public void onSelectedLakeChange(OntoDirectoryService.DataLakeService dataLakeService) {
 	java.util.Enumeration<TreePath> expandedPaths = null;
 	if (tree.getModel() != null && tree.getModel().getRoot() != null) {
 		expandedPaths = tree.getExpandedDescendants(new TreePath(tree.getModel().getRoot()));
@@ -171,18 +312,18 @@ public void onSelectedLakeChange(OntoDirectoryService.DataLakeService dataLakeSe
 		}
 	}
 	
-	tree.setModel(treeModel);// 2. Restore the expansion state
+	tree.setModel(treeModel);
+	
 	if (expandedPaths != null) {
 		while (expandedPaths.hasMoreElements()) {
 			TreePath path = expandedPaths.nextElement();
-			// We must find the new nodes that match the old path strings
 			restorePath(tree, rootNode, path, 0);
 		}
 	} else {
-		tree.expandRow(0); // Fallback to root
+		tree.expandRow(0);
 	}
 }
-// Helper method to safely re-expand nodes by comparing their string values
+
 private void restorePath(JTree tree, DefaultMutableTreeNode currentNode, TreePath oldPath, int depth) {
 	if (depth >= oldPath.getPathCount()) return;
 	
@@ -196,9 +337,6 @@ private void restorePath(JTree tree, DefaultMutableTreeNode currentNode, TreePat
 	}
 }
 
-@Override
-public void onSelectedClassChange(OntologyClass ontologyClass) { }
-@Override
-public void onDomainChange(OntologyClass newDomain) { }
-
+@Override public void onSelectedClassChange(OntologyClass ontologyClass) { }
+@Override public void onDomainChange(OntologyClass newDomain) { }
 }

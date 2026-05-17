@@ -8,22 +8,22 @@ import java.util.ArrayList;
 
 public class AnchorSection extends JPanel {
 
-private final LeftSidebar parent;
+private final LeftSidebar leftSidebar;
 private final ArrayList<JButton> buttons = new ArrayList<>();
 
-public AnchorSection(LeftSidebar parent) {
-	this.parent = parent;
-	setBackground(parent.getBackground().brighter());
+public AnchorSection(LeftSidebar leftSidebar) {
+	this.leftSidebar = leftSidebar;
+	setBackground(leftSidebar.getBackground().brighter());
 	setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 	
 	JButton collapseBtn = registerButton("Toggle Sidebar", "arrow-line-left.svg", "caret-right.svg");
-	collapseBtn.addActionListener(e -> parent.toggleCollapse());
+	collapseBtn.addActionListener(e -> leftSidebar.toggleCollapse());
 	
 	JButton welcomeBtn = registerButton("Welcome Page", "house.svg", "house.svg");
-	welcomeBtn.addActionListener(a -> parent.owner.centerPanel.showPage("WELCOME"));
+	welcomeBtn.addActionListener(a -> leftSidebar.owner.centerPanel.showPage("WELCOME"));
 	
 	JButton instructionsBtn = registerButton("Instruction Manual", "notebook.svg", "notebook.svg");
-	instructionsBtn.addActionListener(a -> parent.owner.centerPanel.showPage("INSTRUCTIONS"));
+	instructionsBtn.addActionListener(a -> leftSidebar.owner.centerPanel.showPage("INSTRUCTIONS"));
 	
 	add(collapseBtn);
 	add(Box.createVerticalStrut(8));

@@ -9,28 +9,28 @@ import java.util.ArrayList;
 
 public class WorkspaceSection extends JPanel {
 
-private final LeftSidebar parent;
+private final LeftSidebar leftSidebar;
 private final ArrayList<JButton> buttons = new ArrayList<>();
 
-public WorkspaceSection(LeftSidebar parent) {
-	this.parent = parent;
-	setBackground(parent.getBackground().brighter());
+public WorkspaceSection(LeftSidebar leftSidebar) {
+	this.leftSidebar = leftSidebar;
+	setBackground(leftSidebar.getBackground().brighter());
 	setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 	
 	JButton treeBtn = registerButton("Tree View", "tree-view.svg", "tree-view.svg");
-	treeBtn.addActionListener(e -> parent.owner.workspacePanel.panelToggled(WorkspacePanel.treeVN));
+	treeBtn.addActionListener(e -> leftSidebar.owner.workspacePanel.panelToggled(WorkspacePanel.treeVN));
 	
 	JButton filesBtn = registerButton("Files View", "files.svg", "files.svg");
-	filesBtn.addActionListener(e -> parent.owner.workspacePanel.panelToggled(WorkspacePanel.filesVN));
+	filesBtn.addActionListener(e -> leftSidebar.owner.workspacePanel.panelToggled(WorkspacePanel.filesVN));
 	
 	JButton notesBtn = registerButton("Notes View", "note.svg", "note.svg");
-	notesBtn.addActionListener(e -> parent.owner.workspacePanel.panelToggled(WorkspacePanel.notesVN));
+	notesBtn.addActionListener(e -> leftSidebar.owner.workspacePanel.panelToggled(WorkspacePanel.notesVN));
 	
 	JButton graphBtn = registerButton("Graph View", "graph.svg", "graph.svg");
-	graphBtn.addActionListener(e -> parent.owner.workspacePanel.panelToggled(WorkspacePanel.graphVN));
+	graphBtn.addActionListener(e -> leftSidebar.owner.workspacePanel.panelToggled(WorkspacePanel.graphVN));
 	
 	JButton vennBtn = registerButton("Venn View", "intersect-three.svg", "intersect-three.svg");
-	vennBtn.addActionListener(e -> parent.owner.workspacePanel.panelToggled(WorkspacePanel.vennVN));
+	vennBtn.addActionListener(e -> leftSidebar.owner.workspacePanel.panelToggled(WorkspacePanel.vennVN));
 	
 	add(treeBtn);
 	add(Box.createVerticalStrut(8));

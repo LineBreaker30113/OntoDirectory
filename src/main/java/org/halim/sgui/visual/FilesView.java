@@ -70,6 +70,8 @@ public FilesView() {
 			JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 			if (value instanceof FileInterface fi) {
 				label.setText("  " + fi.actualName + "  [ID: " + fi.identity + "]");
+				Icon fileIcon = javax.swing.filechooser.FileSystemView.getFileSystemView().getSystemIcon(fi.actualFile.toFile());
+				label.setIcon(fileIcon);
 			}
 			if (isSelected) {
 				label.setBackground(Utilities.SLPEB_Idle);

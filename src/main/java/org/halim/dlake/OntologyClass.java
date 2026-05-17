@@ -56,7 +56,8 @@ public int identityNumber = 0;
 public void clearParents() {
 	OntologyClass root = findROOT();
 	parents.clear();
-	parents.add(root);
+	System.out.println("Root of " + name + ": " + root + " is added!");
+	addParent(root);
 }
 
 /**
@@ -258,7 +259,6 @@ public OntologyClass addParent(OntologyClass candidate) {
 			iterator.remove();
 		}
 	}
-	System.out.println("Candidate " + candidate.name + " was unrelated!");
 	this.parents.add(candidate);
 	candidate.children.add(this);
 	return this;
