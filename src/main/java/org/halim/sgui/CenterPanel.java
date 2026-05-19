@@ -23,6 +23,8 @@ public CenterPanel(GUI_RootPanel owner) {
 }
 
 public void showPage(String pageName) {
+	org.halim.pd.CrashReporter.log("[GUI] CenterPanel shifted to: " + pageName);
 	layout.show(this, pageName);
 }
+
 }

@@ -1,8 +1,7 @@
 package org.halim.sgui.sglib;
 
-import org.halim.dlake.OntologyHierarchyFast;
-import org.halim.hport.OntoDirectoryService;
-import org.halim.hport.OntologyReadingService;
+import org.halim.pd.OntoDirectoryService;
+import org.halim.pd.OntologyReadingService;
 
 
 /** Views that display or edit the overall structure (Tree, Venn, Graph) */

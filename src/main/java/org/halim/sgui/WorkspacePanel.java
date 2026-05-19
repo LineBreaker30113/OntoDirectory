@@ -4,6 +4,7 @@ import org.halim.sgui.sglib.WorkSpaceViewPanel;
 import org.halim.sgui.visual.FilesView;
 import org.halim.sgui.visual.HierarchyTreeView;
 import org.halim.sgui.visual.WorkPanelWrapper;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.util.ArrayList;
@@ -20,6 +21,11 @@ public static final String[] vnames = new String[]{ filesVN, notesVN, treeVN, gr
 private final ArrayList<WorkPanelWrapper> allPanels = new ArrayList<>();
 private final ArrayList<WorkPanelWrapper> activePanels = new ArrayList<>();
 public final GUI_RootPanel owner;
+
+/** RSE Telemetry: Exposes the current visual state for the Diagnostic Matrix */
+public java.util.List<String> getActiveViewNames() {
+	return activePanels.stream().map(w -> w.title).toList();
+}
 
 public WorkspacePanel(GUI_RootPanel owner) {
 	this.owner = owner;
@@ -70,6 +76,7 @@ public void reopenPanel(WorkPanelWrapper wrapper) {
 }
 
 public void panelToggled(String pname) {
+	org.halim.pd.CrashReporter.log("[GUI] WorkspacePanel requested view toggle: " + pname);
 	// Safe stream filtering to prevent crashes if clicked during startup
 	WorkPanelWrapper wrapper = allPanels.stream()
 		  .filter(w -> w.title.equals(pname))
@@ -86,7 +93,8 @@ public void panelToggled(String pname) {
 }
 
 /** Shifts a panel left (-1) or right (1) */
-public void shiftPanel(WorkPanelWrapper wrapper, int direction) {
+public void shiftPanel(@NotNull WorkPanelWrapper wrapper, int direction) {
+	org.halim.pd.CrashReporter.log("[GUI] WorkspacePanel shifted view: " + wrapper.title + " | Dir: " + direction);
 	int currentIndex = activePanels.indexOf(wrapper);
 	if (currentIndex == -1) return;
 	

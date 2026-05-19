@@ -51,6 +51,8 @@ private void setSidebarWidth(int width) {
 
 public void toggleCollapse() {
 	isCollapsed = !isCollapsed;
+	org.halim.pd.CrashReporter.log("[GUI] LeftSidebar collapsed state updated to: " + isCollapsed);
+	isCollapsed = !isCollapsed;
 	setSidebarWidth(isCollapsed ? contracted : expanded);
 	
 	anchorSection.updateCollapseState(isCollapsed);

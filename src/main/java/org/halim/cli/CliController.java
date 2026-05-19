@@ -1,6 +1,6 @@
 package org.halim.cli;
 
-import org.halim.hport.OntoDirectoryService;
+import org.halim.pd.OntoDirectoryService;
 import java.nio.file.Path;
 import java.util.Scanner;
 

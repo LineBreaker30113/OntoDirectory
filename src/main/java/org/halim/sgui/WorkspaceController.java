@@ -1,7 +1,7 @@
 package org.halim.sgui;
 
 import org.halim.dlake.OntologyClass;
-import org.halim.hport.OntoDirectoryService;
+import org.halim.pd.OntoDirectoryService;
 import org.halim.sgui.sglib.WorkspaceListener;
 
 import java.util.ArrayList;

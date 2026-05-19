@@ -1,7 +1,7 @@
 package org.halim.sgui.sglib;
 
 import org.halim.dlake.OntologyClass;
-import org.halim.hport.OntoDirectoryService;
+import org.halim.pd.OntoDirectoryService;
 
 public interface WorkspaceListener {
 	

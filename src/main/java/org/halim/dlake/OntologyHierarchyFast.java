@@ -1,8 +1,8 @@
 package org.halim.dlake;
 
 import org.halim.OntoDirectoryException;
-import org.halim.hport.OntologyMemento;
-import org.halim.hport.OntologyReadingService;
+import org.halim.pd.OntologyMemento;
+import org.halim.pd.OntologyReadingService;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
@@ -308,11 +308,11 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		memento.fileListSnapshot = new ArrayList<>(filesPerOntology.get(targetIndex));
 		
 		// CRITICAL CME FIX: Snapshot arrays and respect encapsulation by using proper methods
-		for (OntologyClass parent : new ArrayList<>(oc.parents)) {
-			oc.removeParent(parent);
-		}
 		for (OntologyClass child : new ArrayList<>(oc.children)) {
 			child.removeParent(oc);
+		}
+		for (OntologyClass parent : new ArrayList<>(oc.parents)) {
+			oc.removeParent(parent);
 		}
 		
 		ontologyClasses.set(targetIndex, null);

@@ -1,8 +1,8 @@
 package org.halim.sgui.visual;
 
 import org.halim.dlake.OntologyClass;
-import org.halim.hport.OntoDirectoryService;
-import org.halim.hport.OntologyReadingService;
+import org.halim.pd.OntoDirectoryService;
+import org.halim.pd.OntologyReadingService;
 import org.halim.sgui.ApplicationController;
 import org.halim.sgui.sglib.HierarchyView;
 import org.jetbrains.annotations.NotNull;

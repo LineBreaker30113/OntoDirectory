@@ -1,7 +1,8 @@
 package org.halim.sgui;
 
 import org.halim.dlake.DataLakeManager;
-import org.halim.hport.OntoDirectoryService;
+import org.halim.pd.DiagnosticStateProvider;
+import org.halim.pd.OntoDirectoryService;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -14,7 +15,7 @@ import java.util.concurrent.TimeUnit;
  * It strictly communicates through the OntoDirectoryService Port and manages
  * the background Debouncer thread for atomic state persistence.
  */
-public class ApplicationController {
+public class ApplicationController implements DiagnosticStateProvider {
 
 public final OntoDirectoryService servicePort;
 public GUI_RootPanel view;
@@ -60,6 +61,33 @@ public void dispatchLakeCloseRequest(OntoDirectoryService.DataLakeService lake) 
 	}
 	servicePort.deleteLake(lake);
 	wsModeller.triggerLakeRefresh(null);
+}
+
+// =========================================================================
+// RSE TELEMETRY: DIAGNOSTIC STATE PROVIDER
+// =========================================================================
+
+@Override
+public String getLayerName() {
+	return "GUI_ADAPTER";
+}
+
+@Override
+public String captureStateDump() {
+	StringBuilder dump = new StringBuilder();
+	dump.append("  Active UI Context : ");
+	if (view != null && view.centerPanel != null) {
+		dump.append(activeLake == null ? "[WELCOME_PAGE]\n" : "[WORKSPACE_PAGE]\n");
+	} else {
+		dump.append("[PRE_INIT]\n");
+	}
+	
+	if (activeLake != null && view != null && view.workspacePanel != null) {
+		dump.append("  Visible Workspaces: ").append(view.workspacePanel.getActiveViewNames()).append("\n");
+	}
+	
+	dump.append("  Background Saver  : ").append(backgroundSaver != null && !backgroundSaver.isShutdown() ? "ACTIVE" : "INACTIVE").append("\n");
+	return dump.toString();
 }
 
 // Inner class to handle callbacks from the Server Adapter Boundaries
@@ -111,7 +139,69 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 	
 	@Override
 	public void showBugReport(java.nio.file.Path reportFile) {
-		// Implementation for bug report dialogs
+		SwingUtilities.invokeLater(() -> {
+			org.halim.pd.CrashReporter.log("[GUI] Displaying Fatal Error Dialog to User.");
+			
+			JDialog crashDialog = new JDialog((java.awt.Frame) null, "Critical System Failure", true);
+			crashDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+			crashDialog.setLayout(new java.awt.BorderLayout(15, 15));
+			crashDialog.getContentPane().setBackground(new java.awt.Color(30, 30, 40)); // Match WP_BG
+			
+			// Header
+			JLabel alertLabel = new JLabel("<html><div style='padding: 10px;'>" +
+				  "<h2 style='color: #FF5555;'>Onto Directory Has Halted</h2>" +
+				  "<p style='color: #EEEEEE;'>A fatal desynchronization occurred. The system has safely halted to prevent data corruption.</p>" +
+				  "<p style='color: #EEEEEE;'>A privacy-masked diagnostic dump has been generated for forensic analysis.</p>" +
+				  "</div></html>");
+			crashDialog.add(alertLabel, java.awt.BorderLayout.NORTH);
+			
+			// File Path Area
+			JTextArea pathArea = new JTextArea(reportFile.toAbsolutePath().toString());
+			pathArea.setEditable(false);
+			pathArea.setLineWrap(true);
+			pathArea.setWrapStyleWord(true);
+			pathArea.setBackground(new java.awt.Color(20, 20, 20));
+			pathArea.setForeground(new java.awt.Color(150, 150, 150));
+			pathArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+			crashDialog.add(new JScrollPane(pathArea), java.awt.BorderLayout.CENTER);
+			
+			// Actions
+			JPanel buttonPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT));
+			buttonPanel.setOpaque(false);
+			
+			JButton openLogBtn = new JButton("Open Log Directory");
+			openLogBtn.addActionListener(e -> {
+				try {
+					java.awt.Desktop.getDesktop().open(reportFile.getParent().toFile());
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
+			});
+			
+			JButton exitBtn = new JButton("Force Terminate System");
+			exitBtn.addActionListener(e -> {
+				System.err.println("System terminated via user interaction with Crash Dialog.");
+				if (activeLake != null) {
+					try {
+						System.err.println("Attempting emergency memory rescue...");
+						activeLake.saveChanges();
+						System.err.println("Emergency rescue successful.");
+					} catch (Exception ex) {
+						System.err.println("Emergency rescue failed. Memory state is unsalvageable.");
+					}
+				}
+				System.exit(1);
+			});
+			
+			buttonPanel.add(openLogBtn);
+			buttonPanel.add(exitBtn);
+			crashDialog.add(buttonPanel, java.awt.BorderLayout.SOUTH);
+			
+			crashDialog.setSize(500, 300);
+			crashDialog.setLocationRelativeTo(null); // Center on screen
+			crashDialog.setVisible(true);
+		});
 	}
+	
 }
 }

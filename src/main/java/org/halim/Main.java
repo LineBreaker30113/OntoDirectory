@@ -1,7 +1,7 @@
 package org.halim;
 
-import com.formdev.flatlaf.FlatDarkLaf;
 import org.halim.cli.CliController;
+import org.halim.pd.CrashReporter;
 import org.halim.sgui.ApplicationController;
 import org.jetbrains.annotations.NotNull;
 
@@ -132,17 +132,9 @@ public static void main(String @NotNull [] args) {
 			// PRE-BOOT FAILURE: servicePort isn't alive yet. Force a global dump manually.
 			System.err.println("Pre-boot failure detected. Routing to global fallback.");
 			java.nio.file.Path fallback = java.nio.file.Paths.get(System.getProperty("user.home"), ".config", "onto-directory");
-			org.halim.dlake.CrashReporter.generateGlobalDump(exception, fallback);
+			CrashReporter.generateGlobalDump(exception, fallback);
 		}
 		
-		if (guiAdapter != null) {
-			SwingUtilities.invokeLater(() -> {
-				javax.swing.JOptionPane.showMessageDialog(null,
-					  "A fatal error occurred. A diagnostic dump has been generated.\n\nError: " + exception.getMessage(),
-					  "System Crash",
-					  javax.swing.JOptionPane.ERROR_MESSAGE);
-			});
-		}
 	});
 	
 	// 2. NOW PROCEED WITH BOOT SEQUENCE
@@ -153,6 +145,7 @@ public static void main(String @NotNull [] args) {
 		// MODE 1: GUI (Default)
 		com.formdev.flatlaf.FlatDarkLaf.setup();
 		guiAdapter = new ApplicationController(servicePort);
+		CrashReporter.registerProvider(guiAdapter);
 		SwingUtilities.invokeLater(Main::onGuiLoad);
 		
 	} else if (args.length == 1 && (args[0].equals("-i") || args[0].equals("--interactive"))) {

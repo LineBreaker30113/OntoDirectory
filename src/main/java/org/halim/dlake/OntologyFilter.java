@@ -1,6 +1,6 @@
 package org.halim.dlake;
 
-import org.halim.hport.OntologyReadingService;
+import org.halim.pd.OntologyReadingService;
 
 import java.util.HashSet;
 import java.util.Set;

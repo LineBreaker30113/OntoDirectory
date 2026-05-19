@@ -1,6 +1,6 @@
 package org.halim.sgui.visual;
 
-import org.halim.hport.OntoDirectoryService;
+import org.halim.pd.OntoDirectoryService;
 import org.halim.sgui.LeftSidebar;
 import org.halim.sgui.sglib.Utilities;
 import org.jetbrains.annotations.NotNull;
