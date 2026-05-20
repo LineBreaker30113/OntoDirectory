@@ -306,21 +306,28 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 		memento.primaryTargetId = targetIndex;
 		memento.classSnapshot = oc;
 		memento.fileListSnapshot = new ArrayList<>(filesPerOntology.get(targetIndex));
+		memento.parentSnapshot = new ArrayList<>(oc.parents);
+		memento.childSnapshot = new ArrayList<>(oc.children);
 		
-		// CRITICAL CME FIX: Snapshot arrays and respect encapsulation by using proper methods
-		for (OntologyClass child : new ArrayList<>(oc.children)) {
-			child.removeParent(oc);
-		}
 		for (OntologyClass parent : new ArrayList<>(oc.parents)) {
 			oc.removeParent(parent);
 		}
+		for (OntologyClass child : new ArrayList<>(oc.children)) {
+			child.removeParent(oc);
+		}
+		getRootOntologyClass().children.remove(oc); oc.parents.clear(); // "removeParent" calls leave the root as parent.
 		
 		ontologyClasses.set(targetIndex, null);
 		filesPerOntology.get(targetIndex).forEach(fi -> {
 			if (fi.tagsByIdentity != null) {
 				fi.tagsByIdentity.remove(Integer.valueOf(targetIndex));
+				if (fi.tagsByIdentity.isEmpty()) {
+					fi.tagsByIdentity.add(0); // Anchor to Root
+					filesPerOntology.get(0).add(fi);
+				}
 			}
 		});
+		filesPerOntology.set(targetIndex, null);
 		filesPerOntology.set(targetIndex, null);
 		
 		recordAction(memento);
@@ -443,6 +450,20 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			OntologyMemento memento = new OntologyMemento();
 			memento.actionType = OntologyMemento.ActionType.Rename;
 			memento.primaryTargetId = classIdentity;
+			memento.stringPayload = oldName;
+			recordAction(memento);
+		}
+	}
+	
+	@Override
+	public void renameElementActualName(FileInterface file, String newName) {
+		if (file != null && newName != null && !newName.trim().isEmpty()) {
+			String oldName = file.actualName;
+			file.actualName = newName.trim();
+			
+			OntologyMemento memento = new OntologyMemento();
+			memento.actionType = OntologyMemento.ActionType.RenameElementActualName;
+			memento.targetFile = file;
 			memento.stringPayload = oldName;
 			recordAction(memento);
 		}

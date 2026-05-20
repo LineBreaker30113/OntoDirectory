@@ -21,6 +21,11 @@ public ArrayList<Integer> tagsByIdentity;
 public static final byte[] noise = "ghijklmnoqprstuvyzwGHIJKLMNOQPRSTUVYZW".getBytes(StandardCharsets.US_ASCII);
 public static final byte[] representers = "00112233445566778899aAbBcCdDeEfF".getBytes(StandardCharsets.US_ASCII);
 
+@Override
+public int hashCode() {
+	return java.util.Objects.hash(identity);
+}
+
 @Contract(pure = true)
 public static FileInterface @NotNull [] getEmptyArray(int elementCount) {
 	FileInterface[] result = new FileInterface[elementCount];
@@ -82,4 +87,5 @@ private void finalizePathUpdate(String newDiskName, Path newPath) {
 	this.diskName = newDiskName;
 	this.actualFile = newPath;
 }
+
 }

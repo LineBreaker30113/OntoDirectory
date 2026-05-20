@@ -15,7 +15,32 @@ import java.util.function.Consumer;
 
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 
-public class Utilities {
+public class Utilities { // TODO: refactor this, make a GUI config object, make it parseable, use this for small simple static functions.
+
+
+// --- DRAG AND DROP INFRASTRUCTURE ---
+public static final java.awt.datatransfer.DataFlavor FILE_LIST_FLAVOR = new java.awt.datatransfer.DataFlavor(java.util.List.class, "List of FileInterfaces");
+public static final java.awt.datatransfer.DataFlavor TAG_LIST_FLAVOR = new java.awt.datatransfer.DataFlavor(java.util.List.class, "List of TagNodeDtos");
+
+public record TagNodeDto(int identity, String name) {
+	@Override public String toString() { return name; }
+}
+
+public static class GenericTransferable implements java.awt.datatransfer.Transferable {
+	private final Object data;
+	private final java.awt.datatransfer.DataFlavor flavor;
+	
+	public GenericTransferable(Object data, java.awt.datatransfer.DataFlavor flavor) {
+		this.data = data;
+		this.flavor = flavor;
+	}
+	@Override public java.awt.datatransfer.DataFlavor[] getTransferDataFlavors() { return new java.awt.datatransfer.DataFlavor[]{flavor}; }
+	@Override public boolean isDataFlavorSupported(java.awt.datatransfer.DataFlavor f) { return flavor.equals(f); }
+	@Override public Object getTransferData(java.awt.datatransfer.DataFlavor f) throws java.awt.datatransfer.UnsupportedFlavorException {
+		if (!isDataFlavorSupported(f)) throw new java.awt.datatransfer.UnsupportedFlavorException(f);
+		return data;
+	}
+}
 
 public static final Color TRANSPARANT_BLACK = new Color(0, 0, 0, 0);
 

@@ -106,6 +106,7 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 	
 	@Override
 	public void onDataLakeLoad(OntoDirectoryService.DataLakeService dataLakeService) {
+		if (ApplicationController.this.activeLake == dataLakeService) return;
 		// 1. Safely tear down existing debouncer if switching lakes
 		if (backgroundSaver != null && !backgroundSaver.isShutdown()) {
 			backgroundSaver.shutdown();
@@ -143,7 +144,7 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 			org.halim.pd.CrashReporter.log("[GUI] Displaying Fatal Error Dialog to User.");
 			
 			JDialog crashDialog = new JDialog((java.awt.Frame) null, "Critical System Failure", true);
-			crashDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+			crashDialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 			crashDialog.setLayout(new java.awt.BorderLayout(15, 15));
 			crashDialog.getContentPane().setBackground(new java.awt.Color(30, 30, 40)); // Match WP_BG
 			
@@ -193,7 +194,11 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 				System.exit(1);
 			});
 			
+			JButton dismissBtn = new JButton("Dismiss Dialog");
+			dismissBtn.addActionListener(e -> crashDialog.dispose());
+			
 			buttonPanel.add(openLogBtn);
+			buttonPanel.add(dismissBtn);
 			buttonPanel.add(exitBtn);
 			crashDialog.add(buttonPanel, java.awt.BorderLayout.SOUTH);
 			

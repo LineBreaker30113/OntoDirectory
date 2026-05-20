@@ -16,10 +16,38 @@ import java.util.List;
  */
 public class CrashReporter {
 
-private static final int MAX_BREADCRUMBS = 1000;
+public static final int MAX_BREADCRUMBS = 1000;
 private static final List<DiagnosticStateProvider> stateProviders = new ArrayList<>();
 private static final CircularFifoQueue<String> globalBreadcrumbs = new CircularFifoQueue<>(MAX_BREADCRUMBS);
 private static final DateTimeFormatter FILE_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+/**
+ * Universal OS-agnostic path resolver targeting the user's physical Documents directory.
+ */
+public static Path getUniversalBugReportsDir() {
+	String userHome = System.getProperty("user.home");
+	Path documentsPath = Paths.get(userHome, "Documents");
+	
+	// Windows specific check: If OneDrive hijacked the user space, resolve to the live synced folder
+	String os = System.getProperty("os.name").toLowerCase();
+	if (os.contains("win")) {
+		Path oneDriveDocs = Paths.get(userHome, "OneDrive", "Documents");
+		if (Files.exists(oneDriveDocs)) {
+			documentsPath = oneDriveDocs;
+		}
+	}
+	
+	Path finalBugDir = documentsPath.resolve("ontoDirectory").resolve("bugReports");
+	try {
+		Files.createDirectories(finalBugDir);
+		return finalBugDir;
+	} catch (Exception e) {
+		// Absolute emergency fallback to execution context if OS permissions block the Documents track
+		Path fallback = Paths.get(userHome, ".config", "onto-directory", "bugReports");
+		try { Files.createDirectories(fallback); } catch (Exception ignored) {}
+		return fallback;
+	}
+}
 
 // --- REGISTRATION & LOGGING API ---
 
@@ -45,7 +73,7 @@ public static Path generateCrashDump(Throwable ex, DataLakeManager activeLake) {
 	}
 	
 	try {
-		Path bugDir = activeLake.getBugReportsDir();
+		Path bugDir = getUniversalBugReportsDir();
 		Path dumpFile = initializeDumpFile(bugDir, "crash_dump_");
 		
 		try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(dumpFile))) {
@@ -79,8 +107,8 @@ public static Path generateCrashDump(Throwable ex, DataLakeManager activeLake) {
  */
 public static Path generateGlobalDump(Throwable ex, Path fallbackConfigDir) {
 	try {
-		Path bugDir = fallbackConfigDir.resolve("bugReports");
-		Path dumpFile = initializeDumpFile(bugDir, "global_crash_dump_");
+		Path bugDir = getUniversalBugReportsDir();;
+		Path dumpFile = initializeDumpFile(bugDir, "crashD");
 		
 		try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(dumpFile))) {
 			writeHeader(writer, "ONTO DIRECTORY GLOBAL CRASH DUMP");

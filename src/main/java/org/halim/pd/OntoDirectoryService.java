@@ -1,7 +1,10 @@
 package org.halim.pd;
 
 import org.halim.Utilities.Pair;
+import org.halim.dlake.FileInterface;
 import org.halim.dlake.OntologyFilter;
+
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 
@@ -41,9 +44,10 @@ interface DataLakeService {
 	}
 	
 	void importFiles();
-	void importFiles(Path sourceDirectory);
+	void importFiles(Path sourceDirectory) throws IOException;
 	void exportFiles(OntologyFilter filter);
 	void exportFiles(OntologyFilter filter, Path destinationFolder);
+	void exportSpecificFiles(java.util.List<FileInterface> files, Path destinationFolder);
 	
 	void logActivity(String action);
 	Path generateDiagnosticDump(Throwable ex);

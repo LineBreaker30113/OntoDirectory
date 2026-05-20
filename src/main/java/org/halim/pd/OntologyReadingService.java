@@ -70,6 +70,8 @@ interface OntologyManagingService extends OntologyReadingService {
 	
 	void renameOntologyClass(int classIdentity, String newName);
 	
+	void renameElementActualName(FileInterface file, String newName);
+	
 	void undo();
 	void redo();
 }

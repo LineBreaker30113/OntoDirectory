@@ -48,6 +48,17 @@ public ArrayList<OntologyClass> parents = new ArrayList<>();
 /** The list of immediate sub-categories contained by this class. */
 public ArrayList<OntologyClass> children = new ArrayList<>();
 
+
+/** Safe extraction for UI iteration */
+public ArrayList<OntologyClass> getSafeParents() {
+	return new ArrayList<>(this.parents);
+}
+
+/** Safe extraction for UI iteration */
+public ArrayList<OntologyClass> getSafeChildren() {
+	return new ArrayList<>(this.children);
+}
+
 public int identityNumber = 0;
 
 /**

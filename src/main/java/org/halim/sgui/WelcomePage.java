@@ -67,7 +67,8 @@ private void buildUI() {
 	));
 	anchorBox.setMaximumSize(new Dimension(400, 100));
 	anchorBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-	JLabel tipLabel = new JLabel("<html><b>Tip:</b> Use the Venn View to easily find files that exist at the intersection of multiple conceptual tags.</html>");
+	String randomTip = org.halim.sgui.sglib.DailyTipParser.getRandomTip();
+	JLabel tipLabel = new JLabel("<html><b>Tip:</b> " + randomTip + "</html>");
 	tipLabel.setForeground(Utilities.ELEMENT_TEXT_SECONDARY);
 	anchorBox.add(tipLabel, BorderLayout.CENTER);
 	

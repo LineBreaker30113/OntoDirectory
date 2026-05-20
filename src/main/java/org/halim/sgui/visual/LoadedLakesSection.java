@@ -132,21 +132,19 @@ private static class DataLakeHeaderTab {
 		mainButton.putClientProperty("collapseIcon", collapsedIcon);
 		Utilities.initButton(mainButton);
 		
-		// --- 2. Action Bar (Close, Import, Export) ---
+		// --- 2. Action Bar (Vacuum, Import, Close) ---
 		actionBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
 		actionBar.setOpaque(false);
 		actionBar.setAlignmentX(Component.RIGHT_ALIGNMENT);
 		
-		JButton exportBtn = createActionBtn("Export", "export.svg", Utilities.SLPEB_Hover);
+		JButton vacuumBtn = createActionBtn("Optimize", "database.svg", Utilities.SLPEB_Hover);
 		JButton importBtn = createActionBtn("Import", "arrow-square-in.svg", Utilities.SLPEB_Hover);
 		JButton closeBtn  = createActionBtn("Close", "x-square.svg", new Color(255, 100, 100));
 		
-		// THE FIX: Defer deletion to EDT tail to bypass synchronous UI rebuilds
 		closeBtn.addActionListener(e -> {
 			int res = JOptionPane.showConfirmDialog(section.leftSidebar.owner, "Save and close Data Lake '" + lakeName + "'?", "Confirm Close", JOptionPane.YES_NO_OPTION);
 			if (res == JOptionPane.YES_OPTION) {
 				section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
-				
 				SwingUtilities.invokeLater(() -> {
 					OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
 					if (lake != null && lake.getRootPath().equals(identity)) {
@@ -157,43 +155,57 @@ private static class DataLakeHeaderTab {
 			}
 		});
 		
-		// Import Logic
 		importBtn.addMouseListener(new MouseAdapter() {
-			@Override public void mousePressed(MouseEvent e) { handle(e); }
-			@Override public void mouseReleased(MouseEvent e) { handle(e); }
-			private void handle(MouseEvent e) {
-				if (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger()) {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				if (SwingUtilities.isLeftMouseButton(e)) {
 					JPopupMenu menu = new JPopupMenu();
-					JMenuItem m1 = new JMenuItem("Import Single File...");
-					JMenuItem m2 = new JMenuItem("Import Directory...");
-					menu.add(m1); menu.add(m2);
-					menu.show(e.getComponent(), e.getX(), e.getY());
-				} else if (SwingUtilities.isLeftMouseButton(e) && e.getID() == MouseEvent.MOUSE_RELEASED) {
-					section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
-					OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
-					if (lake != null) lake.importFiles();
+					JMenuItem m1 = new JMenuItem("Import from Default /imports directory");
+					JMenuItem m2 = new JMenuItem("Import from Specific Folder...");
+					
+					m1.addActionListener(a -> {
+						section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+						OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
+						if (lake != null) {
+							lake.importFiles();
+							section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
+						}
+					});
+					
+					m2.addActionListener(a -> {
+						JFileChooser chooser = new JFileChooser();
+						chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+						if (chooser.showOpenDialog(section) == JFileChooser.APPROVE_OPTION) {
+							section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+							OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
+							if (lake != null) {
+								try {
+									lake.importFiles(chooser.getSelectedFile().toPath());
+									section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
+								} catch(Exception ex) { ex.printStackTrace(); }
+							}
+						}
+					});
+					
+					menu.add(m1);
+					menu.add(m2);
+					menu.show(importBtn, e.getX(), e.getY());
 				}
 			}
 		});
 		
-		// Export Logic
-		exportBtn.addMouseListener(new MouseAdapter() {
-			@Override public void mousePressed(MouseEvent e) { handle(e); }
-			@Override public void mouseReleased(MouseEvent e) { handle(e); }
-			private void handle(MouseEvent e) {
-				if (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger()) {
-					JPopupMenu menu = new JPopupMenu();
-					JMenuItem m1 = new JMenuItem("Export Filtered...");
-					JMenuItem m2 = new JMenuItem("Export Entire Lake...");
-					menu.add(m1); menu.add(m2);
-					menu.show(e.getComponent(), e.getX(), e.getY());
-				} else if (SwingUtilities.isLeftMouseButton(e) && e.getID() == MouseEvent.MOUSE_RELEASED) {
-					section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+		vacuumBtn.addActionListener(e -> {
+			section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+			OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
+			if (lake != null) {
+				int res = JOptionPane.showConfirmDialog(section.leftSidebar.owner, "Run Vacuum? This defragments memory and drops dead IDs.", "Vacuum Graph", JOptionPane.YES_NO_OPTION);
+				if (res == JOptionPane.YES_OPTION) {
+					lake.executeVacuum();
 				}
 			}
 		});
 		
-		actionBar.add(exportBtn);
+		actionBar.add(vacuumBtn);
 		actionBar.add(importBtn);
 		actionBar.add(closeBtn);
 		
@@ -204,8 +216,8 @@ private static class DataLakeHeaderTab {
 	
 	private JButton createActionBtn(String text, String iconName, Color hoverColor) {
 		JButton btn = new JButton(text);
-		btn.setFont(btn.getFont().deriveFont(12f)); // Increased from 10f
-		btn.setMargin(new Insets(4, 10, 4, 10));    // Increased padding
+		btn.setFont(btn.getFont().deriveFont(12f));
+		btn.setMargin(new Insets(4, 10, 4, 10));
 		btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
 		btn.setFocusPainted(false);
 		btn.setOpaque(false);
@@ -222,11 +234,11 @@ private static class DataLakeHeaderTab {
 		
 		btn.setForeground(Utilities.ELEMENT_TEXT_SECONDARY);
 		
-		btn.addMouseListener(new MouseAdapter() {
+		btn.addMouseListener(new java.awt.event.MouseAdapter() {
 			@Override
-			public void mouseEntered(MouseEvent e) { btn.setForeground(hoverColor); }
+			public void mouseEntered(java.awt.event.MouseEvent e) { btn.setForeground(hoverColor); }
 			@Override
-			public void mouseExited(MouseEvent e) { btn.setForeground(Utilities.ELEMENT_TEXT_SECONDARY); }
+			public void mouseExited(java.awt.event.MouseEvent e) { btn.setForeground(Utilities.ELEMENT_TEXT_SECONDARY); }
 		});
 		
 		if (text.equals("Close")) btn.setForeground(new Color(255, 100, 100));

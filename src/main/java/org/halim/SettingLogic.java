@@ -119,7 +119,7 @@ private static void saveSetts() {
 		
 		// 2. Append Booleans
 		appendElement(doc, rootElement, "isSystemFileChooser", String.valueOf(isSystemFileChooser));
-		appendElement(doc, rootElement, "isSystemTheme", String.valueOf(isDarkTheme));
+		appendElement(doc, rootElement, "isDarkTheme", String.valueOf(isDarkTheme));
 		
 		// 3. Append Data Lakes
 		Element lakesElement = doc.createElement("dataLakes");
