@@ -37,7 +37,7 @@ public LeftSidebar(GUI_RootPanel owner) {
 	add(anchorSection);
 	add(Box.createVerticalStrut(48));
 	add(loadedLakesSection);
-	add(Box.createVerticalGlue());
+	add(Box.createVerticalStrut(32));
 	add(workspaceSection);
 	add(Box.createVerticalStrut(40));
 }

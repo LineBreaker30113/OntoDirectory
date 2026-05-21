@@ -96,7 +96,7 @@ public void dispatchLakeChooseRequest(@NotNull Path identity) {
 }
 
 @Override
-public void deleteLake(DataLakeService dataLakeService) {
+public void closeLake(DataLakeService dataLakeService) {
 	CrashReporter.log("[SERVER] [REQ_RECEIVED] Close Lake Request.");
 	if (dataLakeService instanceof DataLakeManager manager) {
 		activeLakes.remove(manager.managerPath);

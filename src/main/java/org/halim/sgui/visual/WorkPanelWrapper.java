@@ -26,11 +26,22 @@ public WorkPanelWrapper(String title, JPanel content, WorkspacePanel parentWorks
 	
 	// Build the Header
 	JPanel header = new JPanel(new BorderLayout());
-	header.setBackground(new Color(45, 45, 45)); // Slightly lighter than background
-	header.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+	header.setBackground(new Color(35, 35, 40));
+	header.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
 	
-	JLabel titleLabel = new JLabel(title);
-	header.add(titleLabel, BorderLayout.WEST);
+	String niceTitle = switch (title) {
+		case WorkspacePanel.treeVN -> "Hierarchy Tree";
+		case WorkspacePanel.filesVN -> "File Explorer";
+		case WorkspacePanel.notesVN -> "Notes & Attachments";
+		case WorkspacePanel.graphVN -> "Directed Graph";
+		case WorkspacePanel.vennVN -> "Venn Diagram";
+		default -> title;
+	};
+	
+	JLabel titleLabel = new JLabel(niceTitle, SwingConstants.CENTER);
+	titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 13f));
+	titleLabel.setForeground(new Color(255, 215, 0)); // Golden text
+	header.add(titleLabel, BorderLayout.CENTER);
 	
 	// Build Controls
 	JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));

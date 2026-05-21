@@ -1,6 +1,7 @@
-package org.halim.sgui;
+package org.halim.sgui.visual;
 
 import org.halim.SettingLogic;
+import org.halim.sgui.GUI_RootPanel;
 import org.halim.sgui.sglib.ScrollableListPanel;
 import org.halim.sgui.sglib.Utilities;
 import org.jetbrains.annotations.NotNull;
@@ -116,16 +117,16 @@ private void buildUI() {
 	settingsList.setInnerColor(Utilities.LIST_BG);
 	settingsList.setSidePanelsColor(Utilities.LIST_HEADER_BG);
 	
-	settingsList.addElement(createSettingToggle("Dark Theme", SettingLogic.isDarkTheme,
-		  e -> {
-		SettingLogic.setSystemTheme(((JCheckBox)e.getSource()).isSelected());
-			  if (SettingLogic.isDarkTheme) {
-				  com.formdev.flatlaf.FlatDarculaLaf.setup();
-			  } else {
-				  com.formdev.flatlaf.FlatLightLaf.setup();
-			  }
-			  SwingUtilities.updateComponentTreeUI(owner.appController.view.getTopLevelAncestor());
-	}));
+//	settingsList.addElement(createSettingToggle("Dark Theme", SettingLogic.isDarkTheme,
+//		  e -> {
+//		SettingLogic.setSystemTheme(((JCheckBox)e.getSource()).isSelected());
+//			  if (SettingLogic.isDarkTheme) {
+//				  com.formdev.flatlaf.FlatDarculaLaf.setup();
+//			  } else {
+//				  com.formdev.flatlaf.FlatLightLaf.setup();
+//			  }
+//			  SwingUtilities.updateComponentTreeUI(owner.appController.view.getTopLevelAncestor());
+//	}));
 	settingsList.addElement(createSettingToggle("Native System File Chooser", SettingLogic.isSystemFileChooser,
 		  e -> SettingLogic.setSystemFileChooser(((JCheckBox)e.getSource()).isSelected())));
 	
@@ -143,11 +144,22 @@ private void launchLakeChooser() {
 	fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 	fileChooser.setDialogTitle("Select a Directory for your Data Lake");
 	
+	boolean useNative = SettingLogic.isSystemFileChooser;
+	if (useNative) {
+		try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); SwingUtilities.updateComponentTreeUI(fileChooser); }
+		catch (Exception e) { e.printStackTrace(); }
+	}
+	
 	int result = fileChooser.showOpenDialog(this);
+	
+	if (useNative) {
+		try { UIManager.setLookAndFeel(new com.formdev.flatlaf.FlatDarkLaf()); SwingUtilities.updateComponentTreeUI(fileChooser); }
+		catch (Exception e) { e.printStackTrace(); }
+	}
+	
 	if (result == JFileChooser.APPROVE_OPTION) {
 		File selectedDir = fileChooser.getSelectedFile();
-		Path lakePath = selectedDir.toPath();
-		owner.appController.servicePort.loadDataLake(lakePath.toString());
+		owner.appController.servicePort.loadDataLake(selectedDir.getAbsolutePath());
 	}
 }
 

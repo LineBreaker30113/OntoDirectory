@@ -1,5 +1,8 @@
 package org.halim.sgui;
 
+import org.halim.sgui.visual.InstructionsPage;
+import org.halim.sgui.visual.WelcomePage;
+
 import javax.swing.*;
 import java.awt.*;
 

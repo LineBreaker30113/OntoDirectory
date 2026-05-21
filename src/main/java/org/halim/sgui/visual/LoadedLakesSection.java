@@ -19,6 +19,7 @@ private final LeftSidebar leftSidebar;
 private final JPanel lakesContainer;
 private final JLabel dataLakeHeaderLabel;
 private final List<DataLakeHeaderTab> lakeItems = new ArrayList<>();
+private final Component bottomGlue;
 
 public LoadedLakesSection(LeftSidebar leftSidebar) {
 	this.leftSidebar = leftSidebar;
@@ -32,7 +33,6 @@ public LoadedLakesSection(LeftSidebar leftSidebar) {
 	headerPanel.setPreferredSize(new Dimension(leftSidebar.expanded, 56));
 	
 	Icon lockersIcon = Utilities.loadSVGIcon("icons/lockers.svg", 40, 40, Utilities.GOLDEN_COLOR);
-	
 	dataLakeHeaderLabel = new JLabel("DATA LAKES", lockersIcon, SwingConstants.CENTER);
 	dataLakeHeaderLabel.setForeground(Utilities.GOLDEN_COLOR);
 	dataLakeHeaderLabel.setIconTextGap(8);
@@ -44,6 +44,8 @@ public LoadedLakesSection(LeftSidebar leftSidebar) {
 	lakesContainer.setOpaque(false);
 	lakesContainer.setLayout(new BoxLayout(lakesContainer, BoxLayout.Y_AXIS));
 	lakesContainer.setAlignmentX(Component.RIGHT_ALIGNMENT);
+	bottomGlue = Box.createVerticalGlue();
+	lakesContainer.add(bottomGlue);
 	
 	add(headerPanel);
 	add(Box.createVerticalStrut(8));
@@ -51,52 +53,31 @@ public LoadedLakesSection(LeftSidebar leftSidebar) {
 }
 
 public void registerDataLake(Path lakeRootPath) {
-	for (DataLakeHeaderTab tab : lakeItems) {
-		if (tab.identity.equals(lakeRootPath)) return;
-	}
-	
+	for (DataLakeHeaderTab tab : lakeItems) if (tab.identity.equals(lakeRootPath)) return;
 	DataLakeHeaderTab nlake = new DataLakeHeaderTab(this, lakeRootPath);
 	lakeItems.add(nlake);
+	lakesContainer.remove(bottomGlue);
 	lakesContainer.add(nlake.container);
-	revalidate();
-	repaint();
+	lakesContainer.add(bottomGlue);
+	revalidate(); repaint();
 }
 
 public void unsignDataLake(Path lakeRootPath) {
-	DataLakeHeaderTab targetTab = null;
-	for (DataLakeHeaderTab tab : lakeItems) {
-		if (tab.identity.equals(lakeRootPath)) {
-			targetTab = tab;
-			break;
-		}
-	}
-	
+	DataLakeHeaderTab targetTab = lakeItems.stream().filter(t -> t.identity.equals(lakeRootPath)).findFirst().orElse(null);
 	if (targetTab != null) {
 		lakeItems.remove(targetTab);
 		lakesContainer.remove(targetTab.container);
-		revalidate();
-		repaint();
+		revalidate(); repaint();
 	}
 }
 
 public void updateCollapseState(boolean isCollapsed) {
 	dataLakeHeaderLabel.setText(isCollapsed ? "" : "DATA LAKES");
-	
 	for (DataLakeHeaderTab item : lakeItems) {
-		JButton btn = item.mainButton;
-		JPanel actionPanel = item.actionBar;
-		
-		if (isCollapsed) {
-			btn.setText("");
-			btn.setIcon((Icon) btn.getClientProperty("collapseIcon"));
-			btn.setHorizontalAlignment(SwingConstants.CENTER);
-			actionPanel.setVisible(false);
-		} else {
-			btn.setText(btn.getActionCommand());
-			btn.setIcon(null);
-			btn.setHorizontalAlignment(SwingConstants.LEFT);
-			actionPanel.setVisible(true);
-		}
+		item.mainButton.setText(isCollapsed ? "" : item.mainButton.getActionCommand());
+		item.mainButton.setIcon(isCollapsed ? (Icon) item.mainButton.getClientProperty("collapseIcon") : null);
+		item.mainButton.setHorizontalAlignment(isCollapsed ? SwingConstants.CENTER : SwingConstants.LEFT);
+		item.actionBar.setVisible(!isCollapsed);
 	}
 }
 
@@ -118,28 +99,32 @@ private static class DataLakeHeaderTab {
 		container.setOpaque(false);
 		container.setAlignmentX(Component.RIGHT_ALIGNMENT);
 		
-		// --- 1. Main Lake Selection Button ---
 		mainButton = new JButton(lakeName);
 		mainButton.addActionListener(__ -> section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity));
 		mainButton.setActionCommand(lakeName);
 		mainButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
 		mainButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-		mainButton.setPreferredSize(new Dimension(56, 40));
+		mainButton.setPreferredSize(new Dimension(40, 40));
 		mainButton.setHorizontalAlignment(SwingConstants.LEFT);
 		mainButton.setMargin(new Insets(0, 10, 0, 0));
-		
-		Icon collapsedIcon = Utilities.loadSVGIcon("icons/folder.svg", 40, 40);
-		mainButton.putClientProperty("collapseIcon", collapsedIcon);
+		mainButton.putClientProperty("collapseIcon", Utilities.loadSVGIcon("icons/folder.svg", 40, 40));
 		Utilities.initButton(mainButton);
 		
-		// --- 2. Action Bar (Vacuum, Import, Close) ---
-		actionBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-		actionBar.setOpaque(false);
+		// Replaced FlowLayout with BoxLayout.X_AXIS so buttons strictly never wrap
+		actionBar = new JPanel();
+		actionBar.setLayout(new BoxLayout(actionBar, BoxLayout.X_AXIS));
+		actionBar.setOpaque(true);
 		actionBar.setAlignmentX(Component.RIGHT_ALIGNMENT);
+		actionBar.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY, 2));
+		actionBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+//		actionBar.setBorder(BorderFactory.createEmptyBorder(4, 0, 8, 8));
 		
-		JButton vacuumBtn = createActionBtn("Optimize", "database.svg", Utilities.SLPEB_Hover);
-		JButton importBtn = createActionBtn("Import", "arrow-square-in.svg", Utilities.SLPEB_Hover);
-		JButton closeBtn  = createActionBtn("Close", "x-square.svg", new Color(255, 100, 100));
+		// This glue dynamically fills left-over space, anchoring the buttons firmly to the right side
+		actionBar.add(Box.createHorizontalGlue());
+		
+		JButton vacuumBtn = createSolidActionBtn("Optimize", "database.svg", Utilities.SLPEB_Hover, Utilities.ELEMENT_TEXT_PRIMARY);
+		JButton importBtn = createSolidActionBtn("Import", "arrow-square-in.svg", Utilities.SLPEB_Hover, Utilities.ELEMENT_TEXT_PRIMARY);
+		JButton closeBtn  = createSolidActionBtn("Close", "x-square.svg", new Color(255, 100, 100), Color.WHITE); // Pass Red Foreground directly
 		
 		closeBtn.addActionListener(e -> {
 			int res = JOptionPane.showConfirmDialog(section.leftSidebar.owner, "Save and close Data Lake '" + lakeName + "'?", "Confirm Close", JOptionPane.YES_NO_OPTION);
@@ -147,49 +132,30 @@ private static class DataLakeHeaderTab {
 				section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
 				SwingUtilities.invokeLater(() -> {
 					OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
-					if (lake != null && lake.getRootPath().equals(identity)) {
-						section.leftSidebar.owner.appController.dispatchLakeCloseRequest(lake);
-					}
+					if (lake != null && lake.getRootPath().equals(identity)) section.leftSidebar.owner.appController.dispatchLakeCloseRequest(lake);
 					section.unsignDataLake(identity);
 				});
 			}
 		});
 		
 		importBtn.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mousePressed(MouseEvent e) {
+			@Override public void mousePressed(MouseEvent e) {
+				section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
+				OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
+				if (lake == null) return;
+				
 				if (SwingUtilities.isLeftMouseButton(e)) {
-					JPopupMenu menu = new JPopupMenu();
-					JMenuItem m1 = new JMenuItem("Import from Default /imports directory");
-					JMenuItem m2 = new JMenuItem("Import from Specific Folder...");
-					
-					m1.addActionListener(a -> {
-						section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
-						OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
-						if (lake != null) {
-							lake.importFiles();
+					JFileChooser chooser = new JFileChooser();
+					chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+					if (chooser.showOpenDialog(section) == JFileChooser.APPROVE_OPTION) {
+						try {
+							lake.importFiles(chooser.getSelectedFile().toPath());
 							section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
-						}
-					});
-					
-					m2.addActionListener(a -> {
-						JFileChooser chooser = new JFileChooser();
-						chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-						if (chooser.showOpenDialog(section) == JFileChooser.APPROVE_OPTION) {
-							section.leftSidebar.owner.appController.servicePort.dispatchLakeChooseRequest(identity);
-							OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
-							if (lake != null) {
-								try {
-									lake.importFiles(chooser.getSelectedFile().toPath());
-									section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
-								} catch(Exception ex) { ex.printStackTrace(); }
-							}
-						}
-					});
-					
-					menu.add(m1);
-					menu.add(m2);
-					menu.show(importBtn, e.getX(), e.getY());
+						} catch(Exception ex) { ex.printStackTrace(); }
+					}
+				} else if (SwingUtilities.isRightMouseButton(e)) {
+					lake.importFiles();
+					section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
 				}
 			}
 		});
@@ -199,50 +165,60 @@ private static class DataLakeHeaderTab {
 			OntoDirectoryService.DataLakeService lake = section.leftSidebar.owner.appController.servicePort.getActiveDataLake();
 			if (lake != null) {
 				int res = JOptionPane.showConfirmDialog(section.leftSidebar.owner, "Run Vacuum? This defragments memory and drops dead IDs.", "Vacuum Graph", JOptionPane.YES_NO_OPTION);
-				if (res == JOptionPane.YES_OPTION) {
-					lake.executeVacuum();
-				}
+				if (res == JOptionPane.YES_OPTION) lake.executeVacuum();
 			}
 		});
 		
 		actionBar.add(vacuumBtn);
+		actionBar.add(Box.createHorizontalStrut(4));
 		actionBar.add(importBtn);
+		actionBar.add(Box.createHorizontalStrut(4));
 		actionBar.add(closeBtn);
 		
 		container.add(mainButton);
 		container.add(actionBar);
-		container.add(Box.createVerticalStrut(10));
 	}
 	
-	private JButton createActionBtn(String text, String iconName, Color hoverColor) {
+	private JButton createSolidActionBtn(String text, String iconName, Color hoverColor, Color defaultForeground) {
 		JButton btn = new JButton(text);
-		btn.setFont(btn.getFont().deriveFont(12f));
-		btn.setMargin(new Insets(4, 10, 4, 10));
-		btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+		btn.setFont(btn.getFont().deriveFont(Font.BOLD, 12f));
+		
+		// Set Maximum size to support the BoxLayout
+		btn.setPreferredSize(new Dimension(85, 30));
+		btn.setMaximumSize(new Dimension(85, 30));
+		
 		btn.setFocusPainted(false);
-		btn.setOpaque(false);
-		btn.setContentAreaFilled(false);
-		btn.setBorderPainted(false);
+		btn.setOpaque(true);
+		btn.setBackground(Utilities.ELEMENT_BG);
+		btn.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1));
+		btn.setForeground(defaultForeground);
 		
-		Icon defaultIcon = Utilities.loadSVGIcon("icons/" + iconName, 14, 14, Utilities.ELEMENT_TEXT_SECONDARY);
-		Icon activeIcon = Utilities.loadSVGIcon("icons/" + iconName, 14, 14, hoverColor);
+		// Generated both SVGs up front to perform quick swapping during the mouse event
+		Icon defaultIcon = Utilities.loadSVGIcon("icons/" + iconName, 14, 14, defaultForeground);
+		Icon hoverIcon = Utilities.loadSVGIcon("icons/" + iconName, 14, 14, hoverColor);
 		
-		if(defaultIcon != null) {
-			btn.setIcon(defaultIcon);
-			btn.setRolloverIcon(activeIcon);
-		}
+		if (defaultIcon != null) btn.setIcon(defaultIcon);
 		
-		btn.setForeground(Utilities.ELEMENT_TEXT_SECONDARY);
+		Color defaultBg = Utilities.ELEMENT_BG;
 		
-		btn.addMouseListener(new java.awt.event.MouseAdapter() {
+		btn.addMouseListener(new MouseAdapter() {
 			@Override
-			public void mouseEntered(java.awt.event.MouseEvent e) { btn.setForeground(hoverColor); }
+			public void mouseEntered(MouseEvent e) {
+				btn.setForeground(hoverColor);
+				btn.setBackground(hoverColor.equals(Color.WHITE) ? new Color(220, 50, 50) : Utilities.ELEMENT_BG.brighter());
+				if (hoverIcon != null) btn.setIcon(hoverIcon);
+			}
 			@Override
-			public void mouseExited(java.awt.event.MouseEvent e) { btn.setForeground(Utilities.ELEMENT_TEXT_SECONDARY); }
+			public void mouseExited(MouseEvent e) {
+				btn.setForeground(defaultForeground);
+				btn.setBackground(defaultBg);
+				if (defaultIcon != null) btn.setIcon(defaultIcon);
+			}
 		});
 		
-		if (text.equals("Close")) btn.setForeground(new Color(255, 100, 100));
 		return btn;
 	}
+	
 }
+
 }

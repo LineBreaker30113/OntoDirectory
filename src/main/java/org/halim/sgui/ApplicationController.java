@@ -50,17 +50,13 @@ public void deployTo(@NotNull JFrame applicationWindow) {
  */
 public void dispatchLakeCloseRequest(OntoDirectoryService.DataLakeService lake) {
 	if (this.activeLake == lake) {
-		if (backgroundSaver != null && !backgroundSaver.isShutdown()) {
-			backgroundSaver.shutdown(); // Immediately prevent further background ticks
-		}
-		// Flush synchronously before closing to guarantee zero data loss
-		if (lake instanceof DataLakeManager dlm && dlm.isDirty()) {
-			dlm.saveChanges();
-		}
+		if (backgroundSaver != null && !backgroundSaver.isShutdown()) backgroundSaver.shutdown();
+		if (lake instanceof DataLakeManager dlm && dlm.isDirty()) dlm.saveChanges();
 		this.activeLake = null;
 	}
-	servicePort.deleteLake(lake);
+	servicePort.closeLake(lake);
 	wsModeller.triggerLakeRefresh(null);
+	view.centerPanel.showPage("WELCOME"); // Return home on close
 }
 
 // =========================================================================
@@ -106,7 +102,10 @@ private class ServiceListenerImpl implements OntoDirectoryService.OntoDirectoryS
 	
 	@Override
 	public void onDataLakeLoad(OntoDirectoryService.DataLakeService dataLakeService) {
-		if (ApplicationController.this.activeLake == dataLakeService) return;
+		if (ApplicationController.this.activeLake == dataLakeService) {
+			SwingUtilities.invokeLater(() -> view.centerPanel.showPage("WORKSPACE"));
+			return;
+		}
 		// 1. Safely tear down existing debouncer if switching lakes
 		if (backgroundSaver != null && !backgroundSaver.isShutdown()) {
 			backgroundSaver.shutdown();

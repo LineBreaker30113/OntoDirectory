@@ -7,9 +7,12 @@ import org.halim.pd.OntoDirectoryService;
 import org.halim.pd.OntologyReadingService;
 import org.halim.sgui.sglib.ContentView;
 import org.halim.sgui.sglib.Utilities;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -42,51 +45,105 @@ public FilesView() {
 	JPanel topBar = new JPanel(new BorderLayout(10, 0));
 	topBar.setBackground(Utilities.LIST_HEADER_BG);
 	topBar.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+	topBar.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 	
-	astContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+	// 1. Override preferred size AND layout logic natively
+	astContainer = new JPanel(null) {
+		@Override
+		public Dimension getPreferredSize() {
+			if (rootAstNode != null) {
+				return rootAstNode.getPreferredSize();
+			}
+			return super.getPreferredSize();
+		}
+		
+		@Override
+		public void doLayout() {
+			super.doLayout();
+			if (rootAstNode == null) return;
+			
+			int containerWidth = getWidth();
+			Dimension childSize = rootAstNode.getPreferredSize();
+			
+			// Calculate centering coordinates
+			int x = (containerWidth - childSize.width) / 2;
+			int y = (65 - childSize.height) / 2;
+			
+			// If the AST exceeds view bounds, anchor it to 0,0 so scrolling works
+			if (x < 0) x = 0;
+			System.out.println(y);
+//			if (y < 0) y = 0;
+			
+			// Force the child to take its required space at the centered coordinates
+			rootAstNode.setBounds(x, y, childSize.width, childSize.height);
+		}
+	};
+	
 	astContainer.setBackground(Utilities.ELEMENT_BG);
 	initEmptyAst();
 	
 	JScrollPane astScrollPane = new JScrollPane(astContainer);
-	astScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+	astScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
 	astScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
 	astScrollPane.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY, 1));
 	astScrollPane.setPreferredSize(new Dimension(0, 65));
+	astScrollPane.getHorizontalScrollBar().setUnitIncrement(astScrollPane.getHorizontalScrollBar().getUnitIncrement() * 26);
 	
-	JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+	JPanel actionPanel = new JPanel(new GridLayout(3, 1, 0, 4));
+	actionPanel.setPreferredSize(new Dimension(100, 80));
 	actionPanel.setOpaque(false);
 	
-	JButton searchBtn = new JButton("Apply Filter");
-	Utilities.initButton(searchBtn);
-	searchBtn.setBackground(Utilities.sideButtonBG);
-	searchBtn.setForeground(Color.WHITE);
-	searchBtn.setPreferredSize(new Dimension(120, 35));
-	searchBtn.addActionListener(e -> performSearch());
-	
-	JButton exportBtn = new JButton("Export Filtered");
-	Utilities.initButton(exportBtn);
-	exportBtn.setBackground(new Color(100, 150, 200));
-	exportBtn.setForeground(Color.WHITE);
-	exportBtn.setPreferredSize(new Dimension(130, 35));
-	exportBtn.addActionListener(e -> {
-		if (activeLakeService == null || currentDomainFiles.isEmpty()) return;
-		JFileChooser chooser = new JFileChooser();
-		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-		chooser.setDialogTitle("Select Export Destination");
-		if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-			activeLakeService.exportSpecificFiles(currentDomainFiles, chooser.getSelectedFile().toPath());
+	actionPanel.add(createColBtn("Save", "plus-circle.svg", e -> {
+		OntologyFilter f = rootAstNode.buildFilter();
+		if (f != null && activeLakeService != null) {
+			String name = JOptionPane.showInputDialog(this, "Tag Name:");
+			if (name != null) activeLakeService.getOntologyManagingService().filterToClass(f, name);
 		}
-	});
-	
-	actionPanel.add(exportBtn);
-	actionPanel.add(searchBtn);
+	}));
+	actionPanel.add(createColBtn("Search", "magnifying-glass.svg", e -> performSearch()));
+	actionPanel.add(createColBtn("Export", "share.svg", e -> {
+		if (activeLakeService != null) {
+			JFileChooser c = new JFileChooser(); c.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+			if (c.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) activeLakeService.exportSpecificFiles(currentDomainFiles, c.getSelectedFile().toPath());
+		}
+	}));
 	
 	topBar.add(astScrollPane, BorderLayout.CENTER);
 	topBar.add(actionPanel, BorderLayout.EAST);
 	
 	// --- CENTER: Infinite Scroll List Rendering ---
 	listModel = new DefaultListModel<>();
-	fileList = new JList<>(listModel);
+	
+	fileList = new JList<>(listModel)/* {
+		@Override
+		public String getToolTipText(java.awt.event.MouseEvent event) {
+			int index = locationToIndex(event.getPoint());
+			if (index != -1) {
+				FileInterface fi = getModel().getElementAt(index);
+				if (fi.tagsByIdentity != null && activeLakeService != null) {
+					OntologyReadingService reader = activeLakeService.getOntologyReadingService();
+					StringBuilder tagBuilder = new StringBuilder("<html>");
+					boolean hasTags = false;
+					for (int tagId : fi.tagsByIdentity) {
+						if (tagId == 0) continue; // Skip Root
+						OntologyClass tagClass = reader.getClassFromIdentity(tagId);
+						if (tagClass != null) {
+							tagBuilder.append(tagClass.name).append("<br>");
+							hasTags = true;
+						}
+					}
+					if (hasTags) {
+						tagBuilder.append("</html>");
+						return tagBuilder.toString();
+					}
+				}
+			}
+			return null;
+		}
+	}*/;
+	// MAGIC LINE: This is required to force JList to fire mouse events for tooltip generation
+//	fileList.setToolTipText("");
+	
 	fileList.setBackground(Utilities.LIST_BG);
 	fileList.setForeground(Utilities.ELEMENT_TEXT_PRIMARY);
 	fileList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -97,18 +154,7 @@ public FilesView() {
 		public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
 			JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 			if (value instanceof FileInterface fi) {
-				StringBuilder tagBuilder = new StringBuilder();
-				if (fi.tagsByIdentity != null && activeLakeService != null) {
-					OntologyReadingService reader = activeLakeService.getOntologyReadingService();
-					for (int tagId : fi.tagsByIdentity) {
-						if (tagId == 0) continue; // Skip Root
-						OntologyClass tagClass = reader.getClassFromIdentity(tagId);
-						if (tagClass != null) tagBuilder.append(tagClass.name).append(", ");
-					}
-				}
-				String tagsStr = tagBuilder.length() > 0 ? "   |   Tags: [" + tagBuilder.substring(0, tagBuilder.length() - 2) + "]" : "";
-				
-				label.setText("  " + fi.actualName + tagsStr);
+				label.setText("  " + fi.actualName);
 				Icon fileIcon = javax.swing.filechooser.FileSystemView.getFileSystemView().getSystemIcon(fi.actualFile.toFile());
 				label.setIcon(fileIcon);
 			}
@@ -125,7 +171,19 @@ public FilesView() {
 	});
 	
 	fileList.addMouseListener(new java.awt.event.MouseAdapter() {
-		@Override public void mousePressed(java.awt.event.MouseEvent e) { showContextMenu(e); }
+		@Override public void mousePressed(java.awt.event.MouseEvent e) {
+			showContextMenu(e);
+			
+			// Trigger tag list purely on a single left click
+			if (SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 1 && !e.isPopupTrigger()) {
+				int index = fileList.locationToIndex(e.getPoint());
+				// Ensure they clicked exactly on an item row, not empty space
+				if (index != -1 && fileList.getCellBounds(index, index).contains(e.getPoint())) {
+					FileInterface fi = listModel.getElementAt(index);
+					showTagListPopup(fi, e.getComponent(), e.getX(), e.getY());
+				}
+			}
+		}
 		@Override public void mouseReleased(java.awt.event.MouseEvent e) { showContextMenu(e); }
 	});
 	
@@ -154,6 +212,15 @@ public FilesView() {
 	add(scrollPane, BorderLayout.CENTER);
 }
 
+private @NotNull JButton createColBtn(String text, String icon, java.awt.event.ActionListener al) {
+	JButton b = new JButton(text, Utilities.loadSVGIcon("icons/"+icon, 16, 16, Color.WHITE));
+	b.setBackground(Utilities.sideButtonBG);
+	b.setForeground(Color.WHITE);
+	b.setMargin(new Insets(0, 0, 0, 0));
+	b.addActionListener(al);
+	return b;
+}
+
 private void initEmptyAst() {
 	astContainer.removeAll();
 	rootAstNode = new EmptyNodeUI(newNode -> {
@@ -166,6 +233,29 @@ private void initEmptyAst() {
 	astContainer.add(rootAstNode);
 	astContainer.revalidate();
 	astContainer.repaint();
+}
+
+private void showTagListPopup(FileInterface fi, Component anchor, int x, int y) {
+	if (fi.tagsByIdentity == null || activeLakeService == null) return;
+	OntologyReadingService reader = activeLakeService.getOntologyReadingService();
+	
+	JPopupMenu tagMenu = new JPopupMenu();
+	boolean hasTags = false;
+	
+	for (int tagId : fi.tagsByIdentity) {
+		if (tagId == 0) continue; // Skip the Root "File" tag
+		OntologyClass tagClass = reader.getClassFromIdentity(tagId);
+		if (tagClass != null) {
+			JMenuItem item = new JMenuItem(tagClass.name);
+			item.setEnabled(false); // Make it read-only so it acts like a label
+			tagMenu.add(item);
+			hasTags = true;
+		}
+	}
+	
+	if (hasTags) {
+		tagMenu.show(anchor, x, y);
+	}
 }
 
 private void showContextMenu(java.awt.event.MouseEvent e) {
@@ -192,7 +282,7 @@ private void showContextMenu(java.awt.event.MouseEvent e) {
 					Files.createDirectories(tempDir);
 					Path tempFile = tempDir.resolve(fi.actualName);
 					Files.copy(fi.actualFile, tempFile, StandardCopyOption.REPLACE_EXISTING);
-					tempFile.toFile().setReadOnly(); // Safety first
+					tempFile.toFile().setReadOnly();
 					Desktop.getDesktop().open(tempFile.toFile());
 				} catch (Exception ex) {
 					JOptionPane.showMessageDialog(this, "Could not open file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -250,17 +340,15 @@ private void showContextMenu(java.awt.event.MouseEvent e) {
 }
 
 @Override
-public void onSelectedLakeChange(OntoDirectoryService.DataLakeService dataLakeService) {
-	this.activeLakeService = dataLakeService;
-	initEmptyAst();
-	performSearch(); // This forces a full lake retrieval since AST is empty
+public void onSelectedLakeChange(OntoDirectoryService.DataLakeService s) {
+	this.activeLakeService = s;
+	performSearch();
 }
 
 @Override
 public void onSelectedClassChange(OntologyClass ontologyClass) {
 	if (ontologyClass == null || activeLakeService == null) return;
 	
-	// Destroy existing AST and force a Domain Filter
 	rootAstNode = new LeafNodeUI(newNode -> {
 		rootAstNode = newNode;
 		astContainer.removeAll();
@@ -290,7 +378,6 @@ private void performSearch() {
 		currentDomainFiles = new ArrayList<>(filter.resolve(reader));
 	}
 	
-	// Stabilize sorting to prevent wild jumps
 	currentDomainFiles.sort(Comparator.comparingInt(f -> f.identity));
 	
 	listModel.clear();
@@ -309,10 +396,6 @@ private void loadMoreFiles() {
 	}
 	loadedCount = end;
 }
-
-// =========================================================================
-// AST GUI BUILDER COMPONENTS
-// =========================================================================
 
 private Integer pickTagDialog() {
 	if (activeLakeService == null) return null;
@@ -348,10 +431,15 @@ private Integer pickTagDialog() {
 private abstract class FilterNodeUI extends JPanel {
 	public FilterNodeUI() {
 		setOpaque(true);
+		setAlignmentY(Component.CENTER_ALIGNMENT); // Perfectly centers in BoxLayout.X_AXIS
 		setBackground(Utilities.LIST_HEADER_BG);
+		// Replaced FlowLayout gap with empty border margins so BoxLayout spaces them correctly
 		setBorder(BorderFactory.createCompoundBorder(
-			  BorderFactory.createLineBorder(Color.BLACK, 1),
-			  BorderFactory.createEmptyBorder(4, 6, 4, 6)
+			  BorderFactory.createEmptyBorder(2, 4, 2, 4),
+			  BorderFactory.createCompoundBorder(
+				    BorderFactory.createLineBorder(Color.BLACK, 1),
+				    BorderFactory.createEmptyBorder(4, 6, 4, 6)
+			  )
 		));
 		setLayout(new FlowLayout(FlowLayout.CENTER, 4, 0));
 	}
@@ -370,7 +458,6 @@ private class EmptyNodeUI extends FilterNodeUI {
 		btn.addActionListener(e -> showMenu(btn));
 		add(btn);
 		
-		// DRAG AND DROP IN (Tags -> Filter AST)
 		setTransferHandler(new TransferHandler() {
 			@Override public boolean canImport(TransferSupport support) {
 				return support.isDataFlavorSupported(Utilities.TAG_LIST_FLAVOR);
@@ -380,7 +467,7 @@ private class EmptyNodeUI extends FilterNodeUI {
 					@SuppressWarnings("unchecked")
 					List<Utilities.TagNodeDto> tags = (List<Utilities.TagNodeDto>) support.getTransferable().getTransferData(Utilities.TAG_LIST_FLAVOR);
 					if (tags != null && !tags.isEmpty()) {
-						int tagId = tags.get(0).identity(); // Assume single drop for AST blocks
+						int tagId = tags.get(0).identity();
 						JPopupMenu dropMenu = new JPopupMenu();
 						dropMenu.add(createItem("Filter as Domain of " + tags.get(0).name(), () -> onReplace.accept(new LeafNodeUI(onReplace, tagId, false))));
 						dropMenu.add(createItem("Filter as Direct Element of " + tags.get(0).name(), () -> onReplace.accept(new LeafNodeUI(onReplace, tagId, true))));

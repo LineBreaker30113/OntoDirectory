@@ -11,7 +11,7 @@ import java.util.ArrayList;
 public interface OntoDirectoryService {
 
 void loadDataLake(String fullPath);
-void deleteLake(DataLakeService dataLakeService);
+void closeLake(DataLakeService dataLakeService);
 ArrayList<Pair<String, Object>> getGUI_Settings();
 void setGUI_Setting(String key, Object value);
 

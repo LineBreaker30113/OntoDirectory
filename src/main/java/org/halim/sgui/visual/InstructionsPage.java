@@ -1,4 +1,4 @@
-package org.halim.sgui;
+package org.halim.sgui.visual;
 
 import org.halim.sgui.sglib.ManualParser;
 import org.halim.sgui.sglib.ManualParser.ManualEntry;

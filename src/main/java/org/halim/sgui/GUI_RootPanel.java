@@ -23,6 +23,26 @@ public GUI_RootPanel(ApplicationController appController) {
 	add(leftSidebar, BorderLayout.WEST);
 	add(centerPanel, BorderLayout.CENTER);
 	
+	// Global Hotkeys for Undo/Redo
+	InputMap im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+	ActionMap am = getActionMap();
+	
+	im.put(KeyStroke.getKeyStroke("control Z"), "UndoAction");
+	am.put("UndoAction", new AbstractAction() {
+		@Override public void actionPerformed(java.awt.event.ActionEvent e) {
+			var lake = appController.servicePort.getActiveDataLake();
+			if (lake != null) { lake.getOntologyManagingService().undo(); appController.wsModeller.triggerLakeRefresh(lake); }
+		}
+	});
+	
+	im.put(KeyStroke.getKeyStroke("control Y"), "RedoAction");
+	am.put("RedoAction", new AbstractAction() {
+		@Override public void actionPerformed(java.awt.event.ActionEvent e) {
+			var lake = appController.servicePort.getActiveDataLake();
+			if (lake != null) { lake.getOntologyManagingService().redo(); appController.wsModeller.triggerLakeRefresh(lake); }
+		}
+	});
+	
 	centerPanel.add(workspacePanel, "WORKSPACE");
 }
 }
