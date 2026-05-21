@@ -74,5 +74,13 @@ interface OntologyManagingService extends OntologyReadingService {
 	
 	void undo();
 	void redo();
+	
+	int createOntologyClassRaw(String name, List<Integer> parentIds, List<Integer> childrenIds);
+	
+	void addElementRaw(int classIdentity, FileInterface file);
+	
+	
 }
+
+
 }

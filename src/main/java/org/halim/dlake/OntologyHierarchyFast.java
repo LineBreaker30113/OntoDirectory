@@ -218,15 +218,20 @@ public class OntologyHierarchyReader implements OntologyReadingService {
 
 // Inherits reader capabilities to satisfy the port contract
 public class OntologyHierarchyManager extends OntologyHierarchyReader implements OntologyReadingService.OntologyManagingService {
-	
+	public static final int stackSize = 100;
 	private final Stack<OntologyMemento> undoStack = new Stack<>();
 	private final Stack<OntologyMemento> redoStack = new Stack<>();
+	
+	public OntologyHierarchyManager() {
+		super();
+	}
 	
 	private boolean isReplaying = false;
 	
 	private void recordAction(OntologyMemento memento) {
 		if (isReplaying) return;
 		undoStack.push(memento);
+		undoStack.setSize(stackSize);
 		redoStack.clear();
 	}
 	
@@ -477,6 +482,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			OntologyMemento memento = undoStack.pop();
 			memento.undo(this, this);
 			redoStack.push(memento);
+			redoStack.setSize(stackSize/3);
 		} finally {
 			isReplaying = false;
 		}
@@ -490,9 +496,54 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			OntologyMemento memento = redoStack.pop();
 			memento.undo(this, this);
 			undoStack.push(memento);
+			undoStack.setSize(stackSize);
 		} finally {
 			isReplaying = false;
 		}
 	}
+	
+	@Override
+	public int createOntologyClassRaw(String name, List<Integer> parentIds, List<Integer> childrenIds) {
+		OntologyClass noc = new OntologyClass(name, getRootOntologyClass());
+		if (parentIds != null) {
+			for (Integer pId : parentIds) {
+				OntologyClass parent = getClassFromIdentity(pId);
+				if (parent != null) noc.addParent(parent);
+				else
+					throw new OntoDirectoryException("One element in the parents array of '" + name + "' was null");
+			}
+		}
+		if (childrenIds != null) {
+			for (Integer cId : childrenIds) {
+				OntologyClass child = getClassFromIdentity(cId);
+				if (child != null) child.addParent(noc);
+				else
+					throw new OntoDirectoryException("One element in the children array of '" + name + "' was null");
+			}
+		}
+		
+		insertNewClass(noc);
+		
+		return noc.identityNumber;
+	}
+	
+	@Override
+	public void addElementRaw(int classIdentity, FileInterface file) {
+		OntologyClass targetClass = getClassFromIdentity(classIdentity);
+		if (targetClass == null) return;
+		
+		ArrayList<FileInterface> fileList = filesPerOntology.get(getIdentityFromClass(targetClass));
+		if (!fileList.contains(file)) {
+			fileList.add(file);
+			
+			if (file.tagsByIdentity == null) {
+				file.tagsByIdentity = new ArrayList<>();
+			}
+			file.tagsByIdentity.add(getIdentityFromClass(targetClass));
+			
+		}
+	}
+	
 }
+
 }

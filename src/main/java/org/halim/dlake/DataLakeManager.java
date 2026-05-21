@@ -227,6 +227,7 @@ public void importFiles(Path sourceDirectory) {
 	String reqId = generateCorrelationId();
 	logUserIntent(reqId, "BULK_IMPORT", sourceDirectory.toString());
 	ontoLock.writeLock().lock();
+	dirtyFlag.set(true);
 	try {
 		if (isCorrupted) throw new OntoDirectoryException("Cannot import to a corrupted or locked Data Lake.");
 		if (!Files.exists(sourceDirectory)) {
@@ -235,7 +236,7 @@ public void importFiles(Path sourceDirectory) {
 		}
 		
 		String temporalClassName = "imported_at_" + simpleDateFormat.format(new Date());
-		int temporalTagId = rawHierarchyManager.createOntologyClass(temporalClassName, (List<Integer>) null, null);
+		int temporalTagId = rawHierarchyManager.createOntologyClassRaw(temporalClassName, null, null);
 		
 		Map<Path, Integer> dirToTagMap = new HashMap<>();
 		dirToTagMap.put(sourceDirectory, temporalTagId);
@@ -246,7 +247,7 @@ public void importFiles(Path sourceDirectory) {
 				if (dir.equals(sourceDirectory)) return FileVisitResult.CONTINUE;
 				Integer parentTagId = dirToTagMap.get(dir.getParent());
 				if (parentTagId == null) parentTagId = temporalTagId; // Fallback to root temporal
-				int newTagId = rawHierarchyManager.createOntologyClass(dir.getFileName().toString(), List.of(parentTagId), null);
+				int newTagId = rawHierarchyManager.createOntologyClassRaw(dir.getFileName().toString(), List.of(parentTagId), null);
 				dirToTagMap.put(dir, newTagId);
 				return FileVisitResult.CONTINUE;
 			}
@@ -260,7 +261,6 @@ public void importFiles(Path sourceDirectory) {
 			}
 		});
 		
-		dirtyFlag.set(true);
 		notifyListeners();
 		logUserCommit(reqId, "SUCCESS", sourceDirectory.toString(), "INFO");
 	} catch (Exception ex) {
@@ -284,9 +284,9 @@ private void processSingleImportInternal(Path physicalFile, OntologyClass destin
 	fi.actualFile = getLakePath().resolve(fi.diskName);
 	
 	try {
-		Files.move(physicalFile, fi.actualFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(physicalFile, fi.actualFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 	} catch (IOException e) {
-		Files.move(physicalFile, fi.actualFile, StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(physicalFile, fi.actualFile, StandardCopyOption.REPLACE_EXISTING);
 	}
 	
 	if (insertIndex == ontologyHierarchy.fileInterfaces.size()) {
@@ -296,9 +296,9 @@ private void processSingleImportInternal(Path physicalFile, OntologyClass destin
 	}
 	
 	if (destinationClass != null) {
-		oms.addElement(destinationClass.identityNumber, fi);
+		oms.addElementRaw(destinationClass.identityNumber, fi);
 	} else {
-		oms.addElement(0, fi);
+		oms.addElementRaw(0, fi);
 	}
 }
 
@@ -421,5 +421,17 @@ private class ThreadSafeManagingService extends ThreadSafeReadingService impleme
 	@Override public void renameElementActualName(FileInterface file, String newName) { executeLogged("RENAME_FILE", "FILE_ID:" + file.identity, () -> { delegate.renameElementActualName(file, newName); return null; }); }
 	@Override public void undo() { executeLogged("UNDO", "LATEST_TRANSACTION", () -> { delegate.undo(); return null; }); }
 	@Override public void redo() { executeLogged("REDO", "LATEST_TRANSACTION", () -> { delegate.redo(); return null; }); }
+	
+	@Override
+	public int createOntologyClassRaw(String name, List<Integer> parentIds, List<Integer> childrenIds) {
+		return 0;
+	}
+	
+	@Override
+	public void addElementRaw(int classIdentity, FileInterface file) {
+	
+	}
+	
 }
+
 }
