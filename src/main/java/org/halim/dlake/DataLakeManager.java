@@ -284,7 +284,7 @@ private void processSingleImportInternal(Path physicalFile, OntologyClass destin
 	fi.actualFile = getLakePath().resolve(fi.diskName);
 	
 	try {
-		Files.copy(physicalFile, fi.actualFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(physicalFile, fi.actualFile, StandardCopyOption.REPLACE_EXISTING);
 	} catch (IOException e) {
 		Files.copy(physicalFile, fi.actualFile, StandardCopyOption.REPLACE_EXISTING);
 	}

@@ -148,10 +148,19 @@ private static class DataLakeHeaderTab {
 					JFileChooser chooser = new JFileChooser();
 					chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 					if (chooser.showOpenDialog(section) == JFileChooser.APPROVE_OPTION) {
-						try {
-							lake.importFiles(chooser.getSelectedFile().toPath());
-							section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
-						} catch(Exception ex) { ex.printStackTrace(); }
+						SwingWorker worker = new SwingWorker() {
+							@Override
+							protected Object doInBackground() throws Exception {
+								try {
+								lake.importFiles(chooser.getSelectedFile().toPath());
+								} catch(Exception ex) { ex.printStackTrace(); }
+								return null;
+							}
+							@Override
+							protected void done() {
+								section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
+							}
+						};
 					}
 				} else if (SwingUtilities.isRightMouseButton(e)) {
 					lake.importFiles();
