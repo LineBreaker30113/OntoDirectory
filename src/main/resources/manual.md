@@ -6,16 +6,23 @@
 //# ==============================================================================
 
 # Introduction to Onto Directory
+
 ````html
+<b>With  newer lose your personal information or files again!</b><br>
 Onto Directory is an elegant, highly structured environment built to safely organize long-term file archives.
 <div style='color: #FFD700; margin-top: 8px;'><b>⚠ Paradigm Shift Notice:</b>
-    This application does not use folders. It uses a Directed Acyclic Graph (DAG).</div>
+    This application does not use folders. It uses a Directed Acyclic Graph (DAG).
+</div>
 While standard applications assume you instantly understand their workflow, Onto Directory includes this guide to ensure you master its paradigm. Scan the summaries below, and expand the details only when you are ready to dive deeper into the mechanics.
 ````
 
 ````html
-Standard file managers force you to memorize rigid paths (e.g., <code>Archive/Work/2026/Invoice.pdf</code>), causing friction when a file belongs in multiple categories. <br><br>
-Powered by an <b>Ontology Engine</b>, Onto Directory eliminates folders entirely. You simply place files into a unified "Data Lake" and dynamically assign conceptual attributes (e.g., "Finance", "2026"). This allows you to cross-reference and retrieve data instantly, mirroring how the human brain actually categorizes information.
+Standard file managers force you to memorize rigid paths (e.g., <code>Archive/Work/2026/Invoice.pdf</code>),
+causing friction when a file belongs in multiple categories. <br>
+The ideology of <span style="color: #FFD700FF; font-weight: 700">Onto Directory</span>: Ontology is the philosophy of objects, and it studies their classifications and definitions.
+If we view files as object, we can use all the studies and discoveries of Ontology (which is the peak of this field) about classifications to organize them. <br>
+Powered by an <b>Ontology Engine</b>, Onto Directory eliminates folders entirely. You simply place files into a unified "Data Lake" and dynamically assign conceptual attributes (e.g., "Finance", "2026").
+This allows you to cross-reference and retrieve data instantly, mirroring how the human brain actually categorizes information.
 ````
 
 # 1. Getting Started: Your First Data Lake
@@ -102,9 +109,11 @@ When you select a file in the Explorer, hovering over it will reveal a clean too
 # 7. System Maintenance & Telemetry
 ````html
 Onto Directory tracks your actions safely and allows you to reverse mistakes. It also includes an Optimization protocol to keep your graph running at lightning speed.
+ The system maintains a memory of your last 100 actions. If you accidentally delete a tag, delete an edge, or rename a file, simply press <b>Ctrl+Z</b> to undo it, or <b>Ctrl+Y</b> to redo it.<br><br>
 ````
 
 ````html
-<b>Undo / Redo:</b> The system maintains a memory of your last 100 actions. If you accidentally delete a tag, delete an edge, or rename a file, simply press <b>Ctrl+Z</b> to undo it, or <b>Ctrl+Y</b> to redo it.<br><br>
+Be careful about <b>Undo / Redo</b>, right now every action is accepted separate and stored as individual records,
+and specifically importing 100 files or assigning a tag to 100 files completely fills the <b>Undo / Redo</b> memory.
 <b>Database Optimization (Vacuum):</b> When you delete tags, the system leaves "tombstones" (empty spaces) in the database to keep your graph running quickly. Over months of use, these empty spaces can add up. Click the <b>Optimize</b> button on your Data Lake header to safely defragment the graph and reclaim memory.
 ````
