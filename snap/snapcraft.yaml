@@ -1,0 +1,51 @@
+name: onto-directory
+version: '1.0.1'
+summary: A lean, pragmatically engineered ontology-based DAG file manager.
+description: |
+  (ATTENTION: Built out of sheer necessity and deployed ASAP for direct personal use, 
+  this utility strips away common software bloat to focus purely on structural execution.)
+
+  Onto Directory completely replaces conventional linear, hierarchical folder structures 
+  with a high-speed, in-memory Directed Acyclic Graph (DAG) backed by tight custom binary 
+  storage streams. It is a lean, no-nonsense tool designed for zero-overhead archiving, 
+  allowing files to exist simultaneously across multiple conceptual categories without 
+  physical data duplication.
+base: core24
+confinement: strict
+grade: stable
+
+apps:
+  onto-directory:
+    # The plugin automatically places the assembly jar right here
+    command: usr/lib/jvm/java-21-openjdk-amd64/bin/java -jar $SNAP/jar/OntoDirectory-1.0-SNAPSHOT-jar-with-dependencies.jar
+    extensions: [gnome]
+    plugs:
+      - home
+      - x11
+      - desktop
+      - desktop-legacy
+      - config-access   # New plug name
+
+plugs:
+  config-access:
+    interface: personal-files
+    read:
+      - $HOME/.config/onto-directory
+    write:
+      - $HOME/.config/onto-directory
+
+parts:
+  onto-directory-project:
+    plugin: maven
+    source: .
+    maven-parameters:
+      - -DskipTests
+    build-packages:
+      - openjdk-21-jdk
+      - maven
+    stage-packages:
+      - openjdk-21-jre
+      - libxrender1
+      - libxtst6
+      - libxi6
+    # REMOVED override-prime: The plugin handles jar organization automatically!

@@ -70,8 +70,18 @@ public HierarchyTreeView(ApplicationController mac) {
 		@Override public boolean importData(TransferSupport support) {
 			if (!canImport(support)) return false;
 			try {
+				// 1. Extract as a raw object first
+				Object data = support.getTransferable().getTransferData(Utilities.FILE_LIST_FLAVOR);
+				
+				// 2. Defensively verify it is a List containing FileInterfaces
+				if (!(data instanceof java.util.List<?> rawList) || rawList.isEmpty() || !(rawList.get(0) instanceof FileInterface)) {
+					return false;
+				}
+				
+				// 3. Now we can safely suppress the warning and cast
 				@SuppressWarnings("unchecked")
-				List<FileInterface> files = (List<FileInterface>) support.getTransferable().getTransferData(Utilities.FILE_LIST_FLAVOR);
+				List<FileInterface> files = (List<FileInterface>) rawList;
+				
 				JTree.DropLocation dropLocation = (JTree.DropLocation) support.getDropLocation();
 				TreePath path = dropLocation.getPath();
 				if (path == null) return false;

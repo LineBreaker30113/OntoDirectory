@@ -38,7 +38,7 @@ public WorkspacePanel(GUI_RootPanel owner) {
 private void initViews() {
 	// 1. Instantiate the Views
 	HierarchyTreeView treeView = new HierarchyTreeView(owner.appController);
-	FilesView filesView = new FilesView();
+	FilesView filesView = new FilesView(owner.appController);
 	WorkSpaceViewPanel.ComingSoonPanel notesView = new WorkSpaceViewPanel.ComingSoonPanel();
 	WorkSpaceViewPanel.ComingSoonPanel graphView = new WorkSpaceViewPanel.ComingSoonPanel();
 	WorkSpaceViewPanel.ComingSoonPanel vennView = new WorkSpaceViewPanel.ComingSoonPanel();

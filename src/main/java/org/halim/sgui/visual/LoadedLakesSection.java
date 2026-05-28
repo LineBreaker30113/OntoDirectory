@@ -152,7 +152,9 @@ private static class DataLakeHeaderTab {
 							@Override
 							protected Object doInBackground() throws Exception {
 								try {
-								lake.importFiles(chooser.getSelectedFile().toPath());
+									Path selectedPath = chooser.getSelectedFile().toPath();
+									System.out.println("Importing files requested for " + selectedPath);
+									lake.importFiles();
 								} catch(Exception ex) { ex.printStackTrace(); }
 								return null;
 							}
@@ -161,6 +163,7 @@ private static class DataLakeHeaderTab {
 								section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
 							}
 						};
+						worker.execute();
 					}
 				} else if (SwingUtilities.isRightMouseButton(e)) {
 					lake.importFiles();

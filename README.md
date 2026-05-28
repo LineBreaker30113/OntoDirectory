@@ -22,4 +22,4 @@ java DirectoryToText.java
 To debug the Ontology Hierarchy actions, just copy and paste the latest crash_dump_YYYYMMDD_HHmmSS.txt
 file from the "<data lake path>/bugReports" to chatbot of your choice, alongside some of those: "OntologyHierarchy",
 "DataLakeManager", "OntologyClass", "ApplicationController", "WorkspaceController", "WorkspacePanel",
-"HierarchyTreeView", "LoadedLakesSection", <hport package classes>.
+"HierarchyTreeView", "LoadedLakesSection", <pd package classes>.

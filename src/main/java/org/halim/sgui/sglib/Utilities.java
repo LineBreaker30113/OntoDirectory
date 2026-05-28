@@ -19,8 +19,14 @@ public class Utilities { // TODO: refactor this, make a GUI config object, make 
 
 
 // --- DRAG AND DROP INFRASTRUCTURE ---
-public static final java.awt.datatransfer.DataFlavor FILE_LIST_FLAVOR = new java.awt.datatransfer.DataFlavor(java.util.List.class, "List of FileInterfaces");
-public static final java.awt.datatransfer.DataFlavor TAG_LIST_FLAVOR = new java.awt.datatransfer.DataFlavor(java.util.List.class, "List of TagNodeDtos");
+// Replace your existing FLAVOR declarations with these:
+
+public static final java.awt.datatransfer.DataFlavor FILE_LIST_FLAVOR =
+	  new java.awt.datatransfer.DataFlavor("application/x-ontodir-file-list;class=java.util.List", "List of FileInterfaces");
+
+public static final java.awt.datatransfer.DataFlavor TAG_LIST_FLAVOR =
+	  new java.awt.datatransfer.DataFlavor("application/x-ontodir-tag-list;class=java.util.List", "List of TagNodeDtos");
+
 
 public record TagNodeDto(int identity, String name) {
 	@Override public String toString() { return name; }

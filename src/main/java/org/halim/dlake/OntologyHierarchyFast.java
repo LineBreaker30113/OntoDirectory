@@ -5,6 +5,7 @@ import org.halim.pd.OntologyMemento;
 import org.halim.pd.OntologyReadingService;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
@@ -231,7 +232,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 	private void recordAction(OntologyMemento memento) {
 		if (isReplaying) return;
 		undoStack.push(memento);
-		undoStack.setSize(stackSize);
+		if (undoStack.size() > stackSize) undoStack.removeElementAt(0);
 		redoStack.clear();
 	}
 	
@@ -482,7 +483,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			OntologyMemento memento = undoStack.pop();
 			memento.undo(this, this);
 			redoStack.push(memento);
-			redoStack.setSize(stackSize/3);
+			if (redoStack.size() > stackSize / 3) redoStack.removeElementAt(0);
 		} finally {
 			isReplaying = false;
 		}
@@ -496,7 +497,7 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			OntologyMemento memento = redoStack.pop();
 			memento.undo(this, this);
 			undoStack.push(memento);
-			undoStack.setSize(stackSize);
+			if (undoStack.size() > stackSize) undoStack.removeElementAt(0);
 		} finally {
 			isReplaying = false;
 		}
@@ -541,6 +542,22 @@ public class OntologyHierarchyManager extends OntologyHierarchyReader implements
 			}
 			file.tagsByIdentity.add(getIdentityFromClass(targetClass));
 			
+		}
+	}
+	
+	@Override
+	public void deleteElements(List<FileInterface> selectedFiles) {
+		selectedFiles.forEach(sf -> {
+			sf.tagsByIdentity.forEach(tg -> {
+				filesPerOntology.get(tg).remove(sf);
+			});
+		});
+		for(int i  = 0; i < fileInterfaces.size(); i++) {
+			for(int ii = 0; ii < selectedFiles.size(); ii++) {
+				if(fileInterfaces.get(i) != selectedFiles.get(ii)) continue;
+				fileInterfaces.set(i, null);
+				selectedFiles.remove(ii);
+			}
 		}
 	}
 	

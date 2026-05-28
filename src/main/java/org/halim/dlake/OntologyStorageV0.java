@@ -126,7 +126,7 @@ public void saveOntologyHierarchy(Path target, @NotNull OntologyHierarchyFast hi
 }
 
 public ArrayList<FileInterface> loadOntologyElementsFromFile(Path source) throws IOException {
-	ByteBuffer data = readFile(source, 180 << 19);
+	ByteBuffer data = readFile(source, 180 << 20);
 	int fileCount = data.getInt();
 	if (fileCount < 0 || fileCount > 1_000_000) throw new IOException("Invalid file count");
 	

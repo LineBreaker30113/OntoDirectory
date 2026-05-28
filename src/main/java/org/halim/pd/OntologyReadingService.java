@@ -79,6 +79,8 @@ interface OntologyManagingService extends OntologyReadingService {
 	
 	void addElementRaw(int classIdentity, FileInterface file);
 	
+	void deleteElements(List<FileInterface> selectedFiles);
+	
 	
 }
 

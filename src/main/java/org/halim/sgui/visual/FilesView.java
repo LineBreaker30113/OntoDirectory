@@ -5,6 +5,7 @@ import org.halim.dlake.OntologyClass;
 import org.halim.dlake.OntologyFilter;
 import org.halim.pd.OntoDirectoryService;
 import org.halim.pd.OntologyReadingService;
+import org.halim.sgui.ApplicationController;
 import org.halim.sgui.sglib.ContentView;
 import org.halim.sgui.sglib.Utilities;
 import org.jetbrains.annotations.NotNull;
@@ -23,6 +24,7 @@ import java.util.function.Consumer;
 
 public class FilesView extends ContentView {
 
+private final ApplicationController mac;
 private final DefaultListModel<FileInterface> listModel;
 private final JList<FileInterface> fileList;
 
@@ -37,7 +39,8 @@ private final int ITEMS_PER_CHUNK = 100;
 private final JPanel astContainer;
 private FilterNodeUI rootAstNode;
 
-public FilesView() {
+public FilesView(ApplicationController mac) {
+	this.mac = mac;
 	setLayout(new BorderLayout());
 	setBackground(Utilities.WP_BG);
 	
@@ -274,6 +277,7 @@ private void showContextMenu(java.awt.event.MouseEvent e) {
 		JMenuItem removeTag = new JMenuItem("Remove Tag from Selected...");
 		JMenuItem exportCopy = new JMenuItem("Export Selected Files...");
 		JMenuItem rename = new JMenuItem("Rename Actual Name");
+		JMenuItem delete = new JMenuItem("Delete The File From the Base");
 		
 		openFile.addActionListener(a -> {
 			for (FileInterface fi : selectedFiles) {
@@ -328,6 +332,19 @@ private void showContextMenu(java.awt.event.MouseEvent e) {
 			}
 		});
 		
+		delete.addActionListener(a -> {
+			int decision = JOptionPane.showConfirmDialog(this, "Deletion from Data lake, this action cannot be \"undo\"ne!", "Confirm Deletion.", JOptionPane.OK_CANCEL_OPTION);
+			if (decision == JOptionPane.OK_OPTION) {
+				try {
+					activeLakeService.getOntologyManagingService().deleteElements(selectedFiles);
+					performSearch();
+				} catch (Exception ex) {
+					// Manually bridge the Swing Thread failure to your Application's Port
+					mac.servicePort.reportFatalError(ex);
+				}
+			}
+		});
+		
 		contextMenu.add(openFile);
 		contextMenu.addSeparator();
 		contextMenu.add(addTag);
@@ -335,6 +352,8 @@ private void showContextMenu(java.awt.event.MouseEvent e) {
 		contextMenu.addSeparator();
 		contextMenu.add(exportCopy);
 		contextMenu.add(rename);
+		contextMenu.addSeparator();
+		contextMenu.add(delete);
 		contextMenu.show(fileList, e.getX(), e.getY());
 	}
 }

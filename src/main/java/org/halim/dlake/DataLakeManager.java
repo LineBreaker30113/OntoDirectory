@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 public class DataLakeManager implements OntoDirectoryService.DataLakeService {
 
@@ -220,10 +221,41 @@ public void saveChanges() {
 	}
 }
 
-@Override public void importFiles() { importFiles(getLakeImports()); }
+@Override public void importFiles() {
+	importFiles(getLakeImports());
+	System.out.println("Import files successful");
+	String reqId = generateCorrelationId();
+	logUserIntent(reqId, "CLEAR_UP_AFTER_IMPORT", getLakeImports().toString());
+	try {
+		if (isCorrupted) throw new OntoDirectoryException("Cannot import to a corrupted or locked Data Lake.");
+		
+		Files.walkFileTree(getLakeImports(), new SimpleFileVisitor<Path>() {
+			@Override
+			public FileVisitResult postVisitDirectory(Path dir, IOException exp) throws IOException {
+				if (dir.equals(getLakeImports())) return FileVisitResult.CONTINUE;
+				Files.delete(dir);
+				return FileVisitResult.CONTINUE;
+			}
+			
+			@Override
+			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+				Files.delete(file);
+				return FileVisitResult.CONTINUE;
+			}
+		});
+		
+		notifyListeners();
+		logUserCommit(reqId, "SUCCESS", getLakeImports().toString(), "INFO");
+	} catch (Exception ex) {
+		logUserCommit(reqId, "FATAL_" + ex.getClass().getSimpleName(), getLakeImports().toString(), "FATAL");
+		generateDiagnosticDump(ex);
+		throw new OntoDirectoryException("Clear up Failure: " + ex.getMessage());
+	}
+}
 
 @Override
 public void importFiles(Path sourceDirectory) {
+	System.out.println("Import files requested for " + sourceDirectory.toString() + "successfully!");
 	String reqId = generateCorrelationId();
 	logUserIntent(reqId, "BULK_IMPORT", sourceDirectory.toString());
 	ontoLock.writeLock().lock();
@@ -417,10 +449,13 @@ private class ThreadSafeManagingService extends ThreadSafeReadingService impleme
 	@Override public void removeParent(int c, int p) { executeLogged("REMOVE_PARENT", "CHILD:" + c + "|PARENT:" + p, () -> { delegate.removeParent(c, p); return null; }); }
 	@Override public void addElement(int i, FileInterface f) { executeLogged("ADD_ELEMENT", "CLASS:" + i, () -> { if (f == null) throw new OntoDirectoryException.NullGivenAsOntologyClassException("Null element."); delegate.addElement(i, f); return null; }); }
 	@Override public void removeElement(int i, FileInterface f) { executeLogged("REMOVE_ELEMENT", "CLASS:" + i, () -> { if (f == null) throw new OntoDirectoryException.NullGivenAsOntologyClassException("Null element."); delegate.removeElement(i, f); return null; }); }
+	@Override public void deleteElements(@NotNull List<FileInterface> selectedFiles) { executeLogged("DELETE_ELEMENT", selectedFiles.stream().map(element -> String.valueOf(element.identity)).collect(Collectors.joining(", ", "ELEMENTS: { ", " }")), () -> {
+		deleteFiles(selectedFiles); delegate.deleteElements(selectedFiles); return null; }); }
 	@Override public void renameOntologyClass(int i, String n) { executeLogged("RENAME_CLASS", "CLASS:" + i + "|NAME:" + n, () -> { delegate.renameOntologyClass(i, n); return null; }); }
-	@Override public void renameElementActualName(FileInterface file, String newName) { executeLogged("RENAME_FILE", "FILE_ID:" + file.identity, () -> { delegate.renameElementActualName(file, newName); return null; }); }
+	@Override public void renameElementActualName(@NotNull FileInterface file, String newName) { executeLogged("RENAME_FILE", "FILE_ID:" + file.identity, () -> { delegate.renameElementActualName(file, newName); return null; }); }
 	@Override public void undo() { executeLogged("UNDO", "LATEST_TRANSACTION", () -> { delegate.undo(); return null; }); }
 	@Override public void redo() { executeLogged("REDO", "LATEST_TRANSACTION", () -> { delegate.redo(); return null; }); }
+	
 	
 	@Override
 	public int createOntologyClassRaw(String name, List<Integer> parentIds, List<Integer> childrenIds) {
@@ -432,6 +467,17 @@ private class ThreadSafeManagingService extends ThreadSafeReadingService impleme
 	
 	}
 	
+}
+
+private void deleteFiles(@NotNull List<FileInterface> selectedFiles) {
+	selectedFiles.forEach(fi -> {
+		try {
+			System.out.println(fi.actualFile.toString());
+			Files.delete(fi.actualFile);
+		} catch (Exception ex) {
+			logUserCommit(generateCorrelationId(), "FATAL_" + ex.getClass().getSimpleName(), fi.diskName, "FATAL");
+			generateDiagnosticDump(ex);
+	}});
 }
 
 }
