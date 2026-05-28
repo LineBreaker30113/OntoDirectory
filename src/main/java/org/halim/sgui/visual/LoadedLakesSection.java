@@ -152,9 +152,7 @@ private static class DataLakeHeaderTab {
 							@Override
 							protected Object doInBackground() throws Exception {
 								try {
-									Path selectedPath = chooser.getSelectedFile().toPath();
-									System.out.println("Importing files requested for " + selectedPath);
-									lake.importFiles();
+									lake.importFiles(chooser.getSelectedFile().toPath());
 								} catch(Exception ex) { ex.printStackTrace(); }
 								return null;
 							}
@@ -166,8 +164,20 @@ private static class DataLakeHeaderTab {
 						worker.execute();
 					}
 				} else if (SwingUtilities.isRightMouseButton(e)) {
-					lake.importFiles();
-					section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
+					SwingWorker worker = new SwingWorker() {
+						@Override
+						protected Object doInBackground() throws Exception {
+							try {
+								lake.importFiles();
+							} catch(Exception ex) { ex.printStackTrace(); }
+							return null;
+						}
+						@Override
+						protected void done() {
+							section.leftSidebar.owner.appController.wsModeller.triggerLakeRefresh(lake);
+						}
+					};
+					worker.execute();
 				}
 			}
 		});
